@@ -401,7 +401,7 @@ export default function Calculadora() {
               <div className="cards4">
                 <div className="scard">
                   <div className="sc-k">Lucro líquido / mês</div>
-                  <div className={`sc-v hero${r.lucroPlena < 0 ? " neg" : ""}`}>{money0(r.lucroPlena)}</div>
+                  <div className={`sc-v hero${r.lucroPlena < 0 ? " neg" : " gain"}`}>{money0(r.lucroPlena)}</div>
                   <div className="sc-n">após insumos, impostos, cartão e fixos</div>
                 </div>
                 <div className="scard">
@@ -434,7 +434,7 @@ export default function Calculadora() {
                 </div>
                 <div className="scard">
                   <div className="sc-k">ROI em 12 meses</div>
-                  <div className={`sc-v hero${r.roi12 !== null && r.roi12 < 0 ? " neg" : ""}`}>
+                  <div className={`sc-v hero${r.roi12 !== null && r.roi12 < 0 ? " neg" : " gain"}`}>
                     {r.roi12 === null ? "···" : pctBR(r.roi12, 0)}
                   </div>
                   <div className="sc-n">lucro acumulado ÷ investimento inicial</div>
@@ -462,7 +462,7 @@ export default function Calculadora() {
                 </div>
                 <div className="scard">
                   <div className="sc-k">Valor da sua hora</div>
-                  <div className={`sc-v mono${r.lucroPlena < 0 ? " neg" : ""}`}>
+                  <div className={`sc-v mono${r.lucroPlena < 0 ? " neg" : " gain"}`}>
                     {r.horasAtendidas > 0 ? `${money(r.lucroHora)}/h` : "···"}
                   </div>
                   <div className="sc-n">lucro mensal ÷ horas atendidas</div>
@@ -495,7 +495,7 @@ export default function Calculadora() {
                 </div>
                 <div className="scard">
                   <div className="sc-k">Margem líquida</div>
-                  <div className={`sc-v mono${r.margemLiq < 0 ? " neg" : ""}`}>{pctBR(r.margemLiq, 1)}</div>
+                  <div className={`sc-v mono${r.margemLiq < 0 ? " neg" : " gain"}`}>{pctBR(r.margemLiq, 1)}</div>
                   <div className="sc-n">lucro ÷ faturamento, agenda plena</div>
                 </div>
               </div>
@@ -1080,15 +1080,15 @@ export default function Calculadora() {
                 <PayChart serie={r.serie} payback={r.payback} />
                 <div className="legend">
                   <span>
-                    <i style={{ background: "#9c7a2c" }} />
+                    <i style={{ background: "#157347" }} />
                     Caixa acumulado (após investimento)
                   </span>
                   <span>
-                    <i style={{ background: "#d6cfc0", height: 2 }} />
+                    <i style={{ background: "#141414", height: 2 }} />
                     Zero
                   </span>
                   <span>
-                    <i style={{ background: "#86c29a", height: 10, width: 10, borderRadius: "50%" }} />
+                    <i style={{ background: "#0d5c38", height: 10, width: 10, borderRadius: "50%" }} />
                     Payback
                   </span>
                 </div>
