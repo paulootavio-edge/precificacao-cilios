@@ -4,8 +4,8 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
-import { calc, custoAplicacao, money, money0, nBR, pctBR, type Dados, type Gasto, type LancData, type Regime, HORIZONTE } from "@/lib/calc";
-import { clonePadrao, migrarDados, novoId, sanitizarLanc, LANC_KEY, STORAGE_KEY } from "@/lib/defaults";
+import { calc, custoAplicacao, money, money0, nBR, pctBR, type Atendimento, type Dados, type Gasto, type LancData, type Regime, HORIZONTE } from "@/lib/calc";
+import { clonePadrao, migrarDados, novoId, STORAGE_KEY } from "@/lib/defaults";
 import { AnoChart, MesChart } from "./LancCharts";
 import { getSupabase } from "@/lib/supabase";
 import PayChart from "./PayChart";
@@ -110,7 +110,6 @@ export default function Calculadora() {
   const [confirmReset, setConfirmReset] = useState(false);
   const [expandido, setExpandido] = useState<number | null>(null);
   const [lanc, setLanc] = useState<LancData>({ atendimentos: [], gastos: [] });
-  const [lancSync, setLancSync] = useState<"init" | "pronto">("init");
   const [lancStatus, setLancStatus] = useState("");
   const [mesSel, setMesSel] = useState<string>(() => hojeISO().slice(0, 7));
   const [fa, setFa] = useState({
@@ -152,50 +151,98 @@ export default function Calculadora() {
         setDados(migrarDados(JSON.parse(raw)));
         setVersao((v) => v + 1);
       }
-      const rawLanc = localStorage.getItem(LANC_KEY) ?? localStorage.getItem("lashfinance:reais:v1");
-      if (rawLanc) setLanc(sanitizarLanc(JSON.parse(rawLanc)));
     } catch {}
   }, []);
 
-  /* lançamentos: realidade única da conta, sincronizada sozinha com a nuvem */
+  /* lançamentos: cada registro é uma linha nas tabelas atendimentos/gastos do banco */
   useEffect(() => {
-    if (!user) {
-      setLancSync("init");
-      return;
-    }
+    if (!user) return;
     let ativo = true;
     (async () => {
-      const { data, error } = await getSupabase()
-        .from("lancamentos")
-        .select("dados")
-        .maybeSingle();
+      const supabase = getSupabase();
+      const [at, ga] = await Promise.all([
+        supabase.from("atendimentos").select("id, data, servico, valor, cliente").order("data"),
+        supabase.from("gastos").select("id, data, tipo, descricao, valor").order("data"),
+      ]);
       if (!ativo) return;
-      if (!error && data?.dados) {
-        const nuvem = sanitizarLanc(data.dados);
-        if (nuvem.atendimentos.length > 0 || nuvem.gastos.length > 0) setLanc(nuvem);
+      if (at.error || ga.error) {
+        setLancStatus("erro ao carregar lançamentos");
+        return;
       }
-      setLancSync("pronto");
+      setLanc({
+        atendimentos: (at.data ?? []).map((a) => ({
+          id: a.id,
+          data: a.data,
+          servico: a.servico ?? "",
+          valor: Number(a.valor) || 0,
+          cliente: a.cliente ?? "",
+        })),
+        gastos: (ga.data ?? []).map((g) => ({
+          id: g.id,
+          data: g.data,
+          tipo: g.tipo === "fixo" || g.tipo === "outro" ? g.tipo : "insumos",
+          desc: g.descricao ?? "",
+          valor: Number(g.valor) || 0,
+        })),
+      });
+      setLancStatus("");
     })();
     return () => {
       ativo = false;
     };
   }, [user]);
 
-  useEffect(() => {
-    const t = setTimeout(() => {
-      try {
-        localStorage.setItem(LANC_KEY, JSON.stringify(lanc));
-      } catch {}
-      if (user && lancSync === "pronto") {
-        setLancStatus("salvando...");
-        void getSupabase()
-          .from("lancamentos")
-          .upsert({ user_id: user.id, dados: lanc })
-          .then(({ error }) => setLancStatus(error ? "erro ao salvar" : "salvo na sua conta"));
-      }
-    }, 700);
-    return () => clearTimeout(t);
-  }, [lanc, user, lancSync]);
+  async function inserirAtendimentos(regs: Atendimento[]) {
+    if (!user || regs.length === 0) return;
+    setLanc((l) => ({ ...l, atendimentos: [...l.atendimentos, ...regs] }));
+    setLancStatus("salvando...");
+    const { error } = await getSupabase().from("atendimentos").insert(
+      regs.map((a) => ({ id: a.id, user_id: user.id, data: a.data, servico: a.servico, valor: a.valor, cliente: a.cliente }))
+    );
+    if (error) {
+      setLanc((l) => ({ ...l, atendimentos: l.atendimentos.filter((x) => !regs.some((r) => r.id === x.id)) }));
+      setLancStatus("erro ao salvar");
+    } else {
+      setLancStatus("salvo na sua conta");
+    }
+  }
+
+  async function inserirGasto(g: Gasto) {
+    if (!user) return;
+    setLanc((l) => ({ ...l, gastos: [...l.gastos, g] }));
+    setLancStatus("salvando...");
+    const { error } = await getSupabase()
+      .from("gastos")
+      .insert({ id: g.id, user_id: user.id, data: g.data, tipo: g.tipo, descricao: g.desc, valor: g.valor });
+    if (error) {
+      setLanc((l) => ({ ...l, gastos: l.gastos.filter((x) => x.id !== g.id) }));
+      setLancStatus("erro ao salvar");
+    } else {
+      setLancStatus("salvo na sua conta");
+    }
+  }
+
+  async function removerAtendimento(id: string) {
+    setLancStatus("salvando...");
+    const { error } = await getSupabase().from("atendimentos").delete().eq("id", id);
+    if (!error) {
+      setLanc((l) => ({ ...l, atendimentos: l.atendimentos.filter((x) => x.id !== id) }));
+      setLancStatus("salvo na sua conta");
+    } else {
+      setLancStatus("erro ao excluir");
+    }
+  }
+
+  async function removerGasto(id: string) {
+    setLancStatus("salvando...");
+    const { error } = await getSupabase().from("gastos").delete().eq("id", id);
+    if (!error) {
+      setLanc((l) => ({ ...l, gastos: l.gastos.filter((x) => x.id !== id) }));
+      setLancStatus("salvo na sua conta");
+    } else {
+      setLancStatus("erro ao excluir");
+    }
+  }
 
   /* o formulário de atendimento nasce com o primeiro procedimento e o preço dele */
   useEffect(() => {
@@ -1340,19 +1387,15 @@ export default function Calculadora() {
             const totalLancamento = itensDoLancamento.reduce((sum, it) => sum + it.valor, 0);
             const addAtendimento = () => {
               if (!fa.data || itensDoLancamento.length === 0) return;
-              setLanc((l) => ({
-                ...l,
-                atendimentos: [
-                  ...l.atendimentos,
-                  ...itensDoLancamento.map((it) => ({
-                    id: novoId(),
-                    data: fa.data,
-                    servico: it.servico,
-                    valor: it.valor,
-                    cliente: fa.cliente.trim(),
-                  })),
-                ],
-              }));
+              void inserirAtendimentos(
+                itensDoLancamento.map((it) => ({
+                  id: crypto.randomUUID(),
+                  data: fa.data,
+                  servico: it.servico,
+                  valor: it.valor,
+                  cliente: fa.cliente.trim(),
+                }))
+              );
               setMesSel(mesDe(fa.data));
               setFa((f) => ({ ...f, cliente: "", itens: [] }));
             };
@@ -1362,13 +1405,13 @@ export default function Calculadora() {
               );
             const addGasto = () => {
               if (!fg.data || fg.valor <= 0) return;
-              setLanc((l) => ({
-                ...l,
-                gastos: [
-                  ...l.gastos,
-                  { id: novoId(), data: fg.data, tipo: fg.tipo, desc: fg.desc.trim() || tipoRotulo[fg.tipo], valor: fg.valor },
-                ],
-              }));
+              void inserirGasto({
+                id: crypto.randomUUID(),
+                data: fg.data,
+                tipo: fg.tipo,
+                desc: fg.desc.trim() || tipoRotulo[fg.tipo],
+                valor: fg.valor,
+              });
               setMesSel(mesDe(fg.data));
               setFg((f) => ({ ...f, desc: "", valor: 0 }));
             };
@@ -1554,7 +1597,7 @@ export default function Calculadora() {
                                   <button
                                     className="del-btn"
                                     title="Remover lançamento"
-                                    onClick={() => setLanc((l) => ({ ...l, atendimentos: l.atendimentos.filter((x) => x.id !== a.id) }))}
+                                    onClick={() => void removerAtendimento(a.id)}
                                   >
                                     ×
                                   </button>
@@ -1593,7 +1636,7 @@ export default function Calculadora() {
                                   <button
                                     className="del-btn"
                                     title="Remover lançamento"
-                                    onClick={() => setLanc((l) => ({ ...l, gastos: l.gastos.filter((x) => x.id !== g.id) }))}
+                                    onClick={() => void removerGasto(g.id)}
                                   >
                                     ×
                                   </button>
