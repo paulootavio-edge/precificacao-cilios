@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { calc, custoAplicacao, money, money0, nBR, pctBR, type Dados, type MesReal, type Regime, HORIZONTE } from "@/lib/calc";
-import { clonePadrao, migrarDados, novoId, STORAGE_KEY } from "@/lib/defaults";
+import { clonePadrao, migrarDados, novoId, sanitizarReais, REAIS_KEY, STORAGE_KEY } from "@/lib/defaults";
 import { getSupabase } from "@/lib/supabase";
 import PayChart from "./PayChart";
 
@@ -114,6 +114,9 @@ export default function Calculadora() {
   const [sideMin, setSideMin] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [expandido, setExpandido] = useState<number | null>(null);
+  const [reais, setReais] = useState<MesReal[]>([]);
+  const [reaisSync, setReaisSync] = useState<"init" | "pronto">("init");
+  const [lancStatus, setLancStatus] = useState("");
   const dadosRef = useRef(dados);
   dadosRef.current = dados;
 
@@ -140,8 +143,50 @@ export default function Calculadora() {
         setDados(migrarDados(JSON.parse(raw)));
         setVersao((v) => v + 1);
       }
+      const rawReais = localStorage.getItem(REAIS_KEY);
+      if (rawReais) setReais(sanitizarReais(JSON.parse(rawReais)));
     } catch {}
   }, []);
+
+  /* lançamentos: realidade única da conta, sincronizada sozinha com a nuvem */
+  useEffect(() => {
+    if (!user) {
+      setReaisSync("init");
+      return;
+    }
+    let ativo = true;
+    (async () => {
+      const { data, error } = await getSupabase()
+        .from("lancamentos")
+        .select("dados")
+        .maybeSingle();
+      if (!ativo) return;
+      if (!error && data?.dados && Array.isArray(data.dados) && data.dados.length > 0) {
+        setReais(sanitizarReais(data.dados));
+        setVersao((v) => v + 1);
+      }
+      setReaisSync("pronto");
+    })();
+    return () => {
+      ativo = false;
+    };
+  }, [user]);
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try {
+        localStorage.setItem(REAIS_KEY, JSON.stringify(reais));
+      } catch {}
+      if (user && reaisSync === "pronto") {
+        setLancStatus("salvando...");
+        void getSupabase()
+          .from("lancamentos")
+          .upsert({ user_id: user.id, dados: reais })
+          .then(({ error }) => setLancStatus(error ? "erro ao salvar" : "salvo na sua conta"));
+      }
+    }, 700);
+    return () => clearTimeout(t);
+  }, [reais, user, reaisSync]);
   useEffect(() => {
     const t = setTimeout(() => {
       try {
@@ -365,6 +410,12 @@ export default function Calculadora() {
             <div className="sub">{infoAba.sub}</div>
           </div>
           <div className="mtop-actions scenarios">
+            {aba === "lancamentos" ? (
+              <span className="sc-status">
+                {lancStatus || "lançamentos salvos automaticamente na sua conta"}
+              </span>
+            ) : (
+              <>
             <span className="sc-label">Cenário</span>
             {user ? (
               <>
@@ -451,6 +502,8 @@ export default function Calculadora() {
               {confirmReset ? "Confirmar? Apaga a tela" : "Restaurar exemplo"}
             </button>
             {status && <span className="sc-status">{status}</span>}
+              </>
+            )}
           </div>
         </div>
 
@@ -1255,34 +1308,31 @@ export default function Calculadora() {
               return r.serie[idx].lucro;
             };
             const resultadoDe = (m: MesReal) => m.receita - m.compras - m.fixos - m.outros;
-            const n = dados.reais.length;
-            const totReceita = dados.reais.reduce((a, m) => a + m.receita, 0);
-            const totGastos = dados.reais.reduce((a, m) => a + m.compras + m.fixos + m.outros, 0);
-            const totAtend = dados.reais.reduce((a, m) => a + m.atend, 0);
+            const n = reais.length;
+            const totReceita = reais.reduce((a, m) => a + m.receita, 0);
+            const totGastos = reais.reduce((a, m) => a + m.compras + m.fixos + m.outros, 0);
+            const totAtend = reais.reduce((a, m) => a + m.atend, 0);
             const totResultado = totReceita - totGastos;
-            const totPrevisto = dados.reais.reduce((a, _m, i) => a + previstoDoIndice(i), 0);
+            const totPrevisto = reais.reduce((a, _m, i) => a + previstoDoIndice(i), 0);
             const desvio = totResultado - totPrevisto;
             const editaReal = (i: number, campo: keyof MesReal, valor: string) =>
-              setDados((d) => {
-                const reais = [...d.reais];
-                reais[i] = { ...reais[i], [campo]: campo === "mes" ? valor : parseNum(valor) };
-                return { ...d, reais };
+              setReais((rs) => {
+                const novo = [...rs];
+                novo[i] = { ...novo[i], [campo]: campo === "mes" ? valor : parseNum(valor) };
+                return novo;
               });
             const addMes = () => {
-              setDados((d) => ({
-                ...d,
-                reais: [
-                  ...d.reais,
-                  {
-                    mes: proximoMes(d.reais),
-                    atend: 0,
-                    receita: 0,
-                    compras: 0,
-                    fixos: Math.round(r.fixosTotais),
-                    outros: 0,
-                  },
-                ],
-              }));
+              setReais((rs) => [
+                ...rs,
+                {
+                  mes: proximoMes(rs),
+                  atend: 0,
+                  receita: 0,
+                  compras: 0,
+                  fixos: Math.round(r.fixosTotais),
+                  outros: 0,
+                },
+              ]);
               remonta();
             };
             return (
@@ -1340,7 +1390,7 @@ export default function Calculadora() {
                           </tr>
                         </thead>
                         <tbody>
-                          {dados.reais.map((m, i) => {
+                          {reais.map((m, i) => {
                             const res = resultadoDe(m);
                             const prev = previstoDoIndice(i);
                             const dif = res - prev;
@@ -1381,7 +1431,7 @@ export default function Calculadora() {
                                     className="del-btn"
                                     title="Remover mês"
                                     onClick={() => {
-                                      setDados((d) => ({ ...d, reais: d.reais.filter((_, j) => j !== i) }));
+                                      setReais((rs) => rs.filter((_, j) => j !== i));
                                       remonta();
                                     }}
                                   >
@@ -1397,9 +1447,9 @@ export default function Calculadora() {
                             <td>Total</td>
                             <td>{nBR(totAtend, 0)}</td>
                             <td>{money(totReceita)}</td>
-                            <td>{money(dados.reais.reduce((a, m) => a + m.compras, 0))}</td>
-                            <td>{money(dados.reais.reduce((a, m) => a + m.fixos, 0))}</td>
-                            <td>{money(dados.reais.reduce((a, m) => a + m.outros, 0))}</td>
+                            <td>{money(reais.reduce((a, m) => a + m.compras, 0))}</td>
+                            <td>{money(reais.reduce((a, m) => a + m.fixos, 0))}</td>
+                            <td>{money(reais.reduce((a, m) => a + m.outros, 0))}</td>
                             <td className={totResultado >= 0 ? "pos" : "neg"}>{money(totResultado)}</td>
                             <td>{money(totPrevisto)}</td>
                             <td className={desvio >= 0 ? "pos" : "neg"}>

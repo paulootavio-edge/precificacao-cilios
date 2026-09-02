@@ -1,4 +1,4 @@
-import type { Dados, Produto, Servico } from "./calc";
+import type { Dados, MesReal, Produto, Servico } from "./calc";
 
 /*
  * consumo: quantas "aplicações" de cada produto o procedimento gasta.
@@ -90,10 +90,23 @@ export const DADOS_PADRAO: Dados = {
     { n: "Estoque inicial de insumos", v: 600 },
     { n: "Decoração e recepção", v: 400 },
   ],
-  reais: [],
 };
 
 export const STORAGE_KEY = "lashfinance:dados:v1";
+export const REAIS_KEY = "lashfinance:reais:v1";
+
+/* aceita lançamentos de qualquer origem (localStorage, nuvem, versões antigas) */
+export function sanitizarReais(raw: unknown): MesReal[] {
+  if (!Array.isArray(raw)) return [];
+  return raw.map((m) => ({
+    mes: typeof m?.mes === "string" ? m.mes : "",
+    atend: typeof m?.atend === "number" ? m.atend : 0,
+    receita: typeof m?.receita === "number" ? m.receita : 0,
+    compras: typeof m?.compras === "number" ? m.compras : 0,
+    fixos: typeof m?.fixos === "number" ? m.fixos : 0,
+    outros: typeof m?.outros === "number" ? m.outros : 0,
+  }));
+}
 
 export function clonePadrao(): Dados {
   return JSON.parse(JSON.stringify(DADOS_PADRAO));
@@ -135,15 +148,8 @@ export function migrarDados(raw: unknown): Dados {
     return { n: s.n ?? "", p: s.p ?? 0, d: s.d ?? 0, m: s.m ?? 0, consumo };
   });
 
-  const reaisRaw = Array.isArray(d.reais) ? d.reais : [];
-  const reais = reaisRaw.map((m) => ({
-    mes: typeof m?.mes === "string" ? m.mes : "",
-    atend: m?.atend ?? 0,
-    receita: m?.receita ?? 0,
-    compras: m?.compras ?? 0,
-    fixos: m?.fixos ?? 0,
-    outros: m?.outros ?? 0,
-  }));
-
-  return { ...d, produtos, servicos, reais };
+  /* cenários antigos podiam carregar `reais` dentro; hoje lançamentos vivem fora do cenário */
+  const limpo = { ...d, produtos, servicos } as Dados & { reais?: unknown };
+  delete limpo.reais;
+  return limpo;
 }
