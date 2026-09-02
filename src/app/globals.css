@@ -93,19 +93,20 @@ input:focus-visible, button:focus-visible, summary:focus-visible, select:focus-v
 .side-foot svg { width: 14px; height: 14px; flex: none; }
 
 .side-toggle {
-  margin-top: 10px; border: none; background: none; cursor: pointer;
-  display: flex; align-items: center; gap: 11px; padding: 9px 11px; width: 100%;
-  border-radius: 8px; color: #6d6c66; font-size: 0.7rem; text-align: left;
+  margin-left: auto; border: none; background: none; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 5px; border-radius: 6px; color: #6d6c66;
   transition: background 0.12s, color 0.12s;
 }
-.side-toggle:hover { background: rgba(255, 255, 255, 0.06); color: #fff; }
+.side-toggle:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
 .side-toggle svg { width: 15px; height: 15px; flex: none; }
 
 /* sidebar recolhida: só ícones */
 .side.min { width: 66px; padding-left: 10px; padding-right: 10px; }
-.side.min .side-brand { justify-content: center; padding-left: 0; padding-right: 0; }
+.side.min .side-brand { flex-direction: column; gap: 12px; padding-left: 0; padding-right: 0; }
 .side.min .side-brand span { display: none; }
-.side.min .side-item, .side.min .side-toggle { justify-content: center; padding-left: 0; padding-right: 0; }
+.side.min .side-toggle { margin-left: 0; }
+.side.min .side-item { justify-content: center; padding-left: 0; padding-right: 0; }
 .side.min .lbl { display: none; }
 .side.min .side-foot { padding-left: 0; padding-right: 0; align-items: center; }
 .side.min .side-foot .mail { display: none; }

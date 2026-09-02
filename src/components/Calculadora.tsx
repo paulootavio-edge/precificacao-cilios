@@ -299,6 +299,13 @@ export default function Calculadora() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/mark-mono.svg" alt="INTERLASH" />
           <span>Lash Finance</span>
+          <button
+            className="side-toggle"
+            title={sideMin ? "Expandir menu" : "Recolher menu"}
+            onClick={alternarSide}
+          >
+            <Icone n={sideMin ? "expandir" : "recolher"} />
+          </button>
         </div>
         <nav>
           {ABAS.map((a) => (
@@ -313,14 +320,6 @@ export default function Calculadora() {
             </button>
           ))}
         </nav>
-        <button
-          className="side-toggle"
-          title={sideMin ? "Expandir menu" : "Recolher menu"}
-          onClick={alternarSide}
-        >
-          <Icone n={sideMin ? "expandir" : "recolher"} />
-          <span className="lbl">Recolher menu</span>
-        </button>
         <div className="side-foot">
           {user ? (
             <>
