@@ -20,7 +20,7 @@ const ABAS: { id: Aba; label: string; titulo: string; sub: string }[] = [
   { id: "projecao", label: "Projeção", titulo: "Projeção e retorno", sub: "Caixa acumulado, payback do investimento e a evolução mês a mês" },
 ];
 
-function Icone({ n }: { n: Aba | "sair" | "entrar" }) {
+function Icone({ n }: { n: Aba | "sair" | "entrar" | "recolher" | "expandir" }) {
   const p = {
     visao: <><path d="M18 20V10" /><path d="M12 20V4" /><path d="M6 20v-6" /></>,
     negocio: <><rect x="2" y="7" width="20" height="14" rx="2" /><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" /></>,
@@ -29,6 +29,8 @@ function Icone({ n }: { n: Aba | "sair" | "entrar" }) {
     projecao: <><path d="M23 6 13.5 15.5 8.5 10.5 1 18" /><path d="M17 6h6v6" /></>,
     sair: <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="M16 17l5-5-5-5" /><path d="M21 12H9" /></>,
     entrar: <><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" /><path d="M10 17l5-5-5-5" /><path d="M15 12H3" /></>,
+    recolher: <><path d="M11 17l-5-5 5-5" /><path d="M18 17l-5-5 5-5" /></>,
+    expandir: <><path d="M13 17l5-5-5-5" /><path d="M6 17l5-5-5-5" /></>,
   }[n];
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
@@ -88,11 +90,28 @@ export default function Calculadora() {
   const [cenarioAtual, setCenarioAtual] = useState<string>("");
   const [status, setStatus] = useState<string>("");
   const [nomeNovo, setNomeNovo] = useState<string>("");
-  const [confirmDel, setConfirmDel] = useState(false);
+  const [confirmDelId, setConfirmDelId] = useState<string | null>(null);
+  const [menuAberto, setMenuAberto] = useState(false);
+  const [sideMin, setSideMin] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [expandido, setExpandido] = useState<number | null>(null);
   const dadosRef = useRef(dados);
   dadosRef.current = dados;
+
+  /* preferência da sidebar recolhida */
+  useEffect(() => {
+    try {
+      setSideMin(localStorage.getItem("lashfinance:sidemin") === "1");
+    } catch {}
+  }, []);
+  function alternarSide() {
+    setSideMin((v) => {
+      try {
+        localStorage.setItem("lashfinance:sidemin", v ? "0" : "1");
+      } catch {}
+      return !v;
+    });
+  }
 
   /* localStorage: carrega no mount, salva com debounce */
   useEffect(() => {
@@ -181,7 +200,7 @@ export default function Calculadora() {
 
   async function carregarCenario(id: string) {
     setCenarioAtual(id);
-    setConfirmDel(false);
+    setConfirmDelId(null);
     if (!id) return;
     const { data, error } = await getSupabase()
       .from("cenarios")
@@ -195,15 +214,14 @@ export default function Calculadora() {
     }
   }
 
-  async function excluirCenario() {
-    if (!cenarioAtual) return;
-    if (!confirmDel) {
-      setConfirmDel(true);
+  async function excluirCenario(id: string) {
+    if (confirmDelId !== id) {
+      setConfirmDelId(id);
       return;
     }
-    setConfirmDel(false);
-    await getSupabase().from("cenarios").delete().eq("id", cenarioAtual);
-    setCenarioAtual("");
+    setConfirmDelId(null);
+    await getSupabase().from("cenarios").delete().eq("id", id);
+    if (cenarioAtual === id) setCenarioAtual("");
     setStatus("cenário excluído");
     void carregarLista();
   }
@@ -276,10 +294,10 @@ export default function Calculadora() {
   return (
     <div className="app">
       {/* ================= SIDEBAR ================= */}
-      <aside className="side">
+      <aside className={`side${sideMin ? " min" : ""}`}>
         <div className="side-brand">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-mono.svg" alt="INTERLASH" />
+          <img src="/mark-mono.svg" alt="INTERLASH" />
           <span>Lash Finance</span>
         </div>
         <nav>
@@ -287,30 +305,36 @@ export default function Calculadora() {
             <button
               key={a.id}
               className={`side-item ${aba === a.id ? "on" : ""}`}
+              title={a.label}
               onClick={() => setAba(a.id)}
             >
               <Icone n={a.id} />
-              {a.label}
+              <span className="lbl">{a.label}</span>
             </button>
           ))}
         </nav>
+        <button
+          className="side-toggle"
+          title={sideMin ? "Expandir menu" : "Recolher menu"}
+          onClick={alternarSide}
+        >
+          <Icone n={sideMin ? "expandir" : "recolher"} />
+          <span className="lbl">Recolher menu</span>
+        </button>
         <div className="side-foot">
           {user ? (
             <>
               <span className="mail">{user.email}</span>
-              <button onClick={() => void sair()}>
+              <button onClick={() => void sair()} title="Sair">
                 <Icone n="sair" />
-                Sair
+                <span className="lbl">Sair</span>
               </button>
             </>
           ) : (
-            <>
-              <span>Entre para salvar os seus cenários na nuvem.</span>
-              <Link href="/entrar">
-                <Icone n="entrar" />
-                Entrar / criar conta
-              </Link>
-            </>
+            <Link href="/entrar" title="Entrar">
+              <Icone n="entrar" />
+              <span className="lbl">Entrar / criar conta</span>
+            </Link>
           )}
         </div>
       </aside>
@@ -326,14 +350,63 @@ export default function Calculadora() {
             <span className="sc-label">Cenário</span>
             {user ? (
               <>
-                <select value={cenarioAtual} onChange={(e) => void carregarCenario(e.target.value)}>
-                  <option value="">novo (não salvo)</option>
-                  {cenarios.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.nome}
-                    </option>
-                  ))}
-                </select>
+                <div className="sc-dd">
+                  <button
+                    className="btn ghost mini"
+                    onClick={() => {
+                      setMenuAberto((v) => !v);
+                      setConfirmDelId(null);
+                    }}
+                  >
+                    {cenarios.find((c) => c.id === cenarioAtual)?.nome ?? "novo (não salvo)"}
+                    <span style={{ fontSize: ".55rem" }}>▾</span>
+                  </button>
+                  {menuAberto && (
+                    <>
+                      <div
+                        className="sc-overlay"
+                        onClick={() => {
+                          setMenuAberto(false);
+                          setConfirmDelId(null);
+                        }}
+                      />
+                      <div className="sc-menu">
+                        <button
+                          className="sc-nome"
+                          onClick={() => {
+                            setCenarioAtual("");
+                            setMenuAberto(false);
+                          }}
+                        >
+                          novo (não salvo)
+                        </button>
+                        {cenarios.map((c) => (
+                          <div className={`sc-row${c.id === cenarioAtual ? " atual" : ""}`} key={c.id}>
+                            <button
+                              className="sc-nome"
+                              onClick={() => {
+                                void carregarCenario(c.id);
+                                setMenuAberto(false);
+                              }}
+                            >
+                              {c.nome}
+                            </button>
+                            <button
+                              className={`sc-del${confirmDelId === c.id ? " on" : ""}`}
+                              title="Excluir cenário"
+                              onClick={() => void excluirCenario(c.id)}
+                            >
+                              {confirmDelId === c.id ? "confirmar?" : "excluir"}
+                            </button>
+                          </div>
+                        ))}
+                        {cenarios.length === 0 && (
+                          <div className="sc-vazio">nenhum cenário salvo ainda</div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
                 {cenarioAtual && (
                   <button className="btn mini" onClick={() => void sobrescrever()}>
                     Salvar
@@ -348,15 +421,6 @@ export default function Calculadora() {
                 <button className="btn gold mini" onClick={() => void salvarNovo()}>
                   Salvar como novo
                 </button>
-                {cenarioAtual && (
-                  <button
-                    className="btn ghost mini"
-                    style={confirmDel ? { borderColor: "var(--red)", color: "var(--red)" } : undefined}
-                    onClick={() => void excluirCenario()}
-                  >
-                    {confirmDel ? "Confirmar exclusão?" : "Excluir"}
-                  </button>
-                )}
               </>
             ) : (
               <span className="sc-status">salvo neste navegador</span>
