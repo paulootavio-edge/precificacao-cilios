@@ -273,6 +273,9 @@ td.edit { background: #fdfdfb; }
 }
 .tin:focus { border-color: var(--ink); box-shadow: 0 0 0 3px rgba(20, 20, 20, 0.07); }
 .tin.name { font-family: var(--font-body); font-weight: 500; width: 150px; text-align: left; font-size: 0.75rem; }
+.tin.mes { width: 132px; text-align: left; font-size: 0.7rem; }
+tfoot td { border-top: 1px solid var(--border); border-bottom: none; background: var(--surface); font-weight: 500; }
+tfoot td:first-child { font-family: var(--font-body); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
 .tbl-actions { display: flex; align-items: center; gap: 16px; margin-top: 14px; flex-wrap: wrap; }
 .tbl-actions .add-btn { width: auto; margin-top: 0; padding: 7px 16px; }
 

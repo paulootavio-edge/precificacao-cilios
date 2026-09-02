@@ -4,13 +4,13 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
-import { calc, custoAplicacao, money, money0, nBR, pctBR, type Dados, type Regime, HORIZONTE } from "@/lib/calc";
+import { calc, custoAplicacao, money, money0, nBR, pctBR, type Dados, type MesReal, type Regime, HORIZONTE } from "@/lib/calc";
 import { clonePadrao, migrarDados, novoId, STORAGE_KEY } from "@/lib/defaults";
 import { getSupabase } from "@/lib/supabase";
 import PayChart from "./PayChart";
 
 type CenarioMeta = { id: string; nome: string; updated_at: string };
-type Aba = "visao" | "negocio" | "precos" | "insumos" | "projecao";
+type Aba = "visao" | "negocio" | "precos" | "insumos" | "projecao" | "lancamentos";
 
 const ABAS: { id: Aba; label: string; titulo: string; sub: string }[] = [
   { id: "visao", label: "Visão geral", titulo: "Visão geral", sub: "Diagnóstico e indicadores do seu estúdio em agenda plena" },
@@ -18,7 +18,25 @@ const ABAS: { id: Aba; label: string; titulo: string; sub: string }[] = [
   { id: "precos", label: "Precificação", titulo: "Precificação por procedimento", sub: "Preços, duração, mix de agenda e a receita de insumos de cada procedimento" },
   { id: "insumos", label: "Insumos", titulo: "Catálogo de insumos", sub: "Os produtos que você compra: preço e rendimento viram custo por aplicação" },
   { id: "projecao", label: "Projeção", titulo: "Projeção e retorno", sub: "Caixa acumulado, payback do investimento e a evolução mês a mês" },
+  { id: "lancamentos", label: "Lançamentos", titulo: "Lançamentos mensais", sub: "Registre a realidade de cada mês e compare com o que foi planejado" },
 ];
+
+function proximoMes(reais: MesReal[]): string {
+  if (reais.length > 0) {
+    const m = /^(\d{4})-(\d{2})$/.exec(reais[reais.length - 1].mes);
+    if (m) {
+      let ano = +m[1];
+      let mes = +m[2] + 1;
+      if (mes > 12) {
+        mes = 1;
+        ano++;
+      }
+      return `${ano}-${String(mes).padStart(2, "0")}`;
+    }
+  }
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
 
 function Icone({ n }: { n: Aba | "sair" | "entrar" | "recolher" | "expandir" }) {
   const p = {
@@ -27,6 +45,7 @@ function Icone({ n }: { n: Aba | "sair" | "entrar" | "recolher" | "expandir" }) 
     precos: <><path d="M20.59 13.41 12 22 2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" /><circle cx="7" cy="7" r="1.5" /></>,
     insumos: <><path d="M21 16V8l-9-5-9 5v8l9 5 9-5z" /><path d="M3.3 7 12 12l8.7-5" /><path d="M12 22V12" /></>,
     projecao: <><path d="M23 6 13.5 15.5 8.5 10.5 1 18" /><path d="M17 6h6v6" /></>,
+    lancamentos: <><rect x="8" y="2" width="8" height="4" rx="1" /><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" /><path d="M9 12h6" /><path d="M9 16h6" /></>,
     sair: <><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><path d="M16 17l5-5-5-5" /><path d="M21 12H9" /></>,
     entrar: <><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" /><path d="M10 17l5-5-5-5" /><path d="M15 12H3" /></>,
     recolher: <><path d="M11 17l-5-5 5-5" /><path d="M18 17l-5-5 5-5" /></>,
@@ -1228,6 +1247,193 @@ export default function Calculadora() {
               </footer>
             </>
           )}
+
+          {/* ================= LANÇAMENTOS (módulo 2) ================= */}
+          {aba === "lancamentos" && (() => {
+            const previstoDoIndice = (i: number) => {
+              const idx = Math.min(i + 1, r.serie.length - 1);
+              return r.serie[idx].lucro;
+            };
+            const resultadoDe = (m: MesReal) => m.receita - m.compras - m.fixos - m.outros;
+            const n = dados.reais.length;
+            const totReceita = dados.reais.reduce((a, m) => a + m.receita, 0);
+            const totGastos = dados.reais.reduce((a, m) => a + m.compras + m.fixos + m.outros, 0);
+            const totAtend = dados.reais.reduce((a, m) => a + m.atend, 0);
+            const totResultado = totReceita - totGastos;
+            const totPrevisto = dados.reais.reduce((a, _m, i) => a + previstoDoIndice(i), 0);
+            const desvio = totResultado - totPrevisto;
+            const editaReal = (i: number, campo: keyof MesReal, valor: string) =>
+              setDados((d) => {
+                const reais = [...d.reais];
+                reais[i] = { ...reais[i], [campo]: campo === "mes" ? valor : parseNum(valor) };
+                return { ...d, reais };
+              });
+            const addMes = () => {
+              setDados((d) => ({
+                ...d,
+                reais: [
+                  ...d.reais,
+                  {
+                    mes: proximoMes(d.reais),
+                    atend: 0,
+                    receita: 0,
+                    compras: 0,
+                    fixos: Math.round(r.fixosTotais),
+                    outros: 0,
+                  },
+                ],
+              }));
+              remonta();
+            };
+            return (
+              <>
+                {n > 0 && (
+                  <div className="cards4">
+                    <div className="scard">
+                      <div className="sc-k">Resultado acumulado (real)</div>
+                      <div className={`sc-v${totResultado < 0 ? " neg" : " gain"}`}>{money0(totResultado)}</div>
+                      <div className="sc-n">{n} {n === 1 ? "mês lançado" : "meses lançados"}</div>
+                    </div>
+                    <div className="scard">
+                      <div className="sc-k">Receita média / mês</div>
+                      <div className="sc-v">{money0(totReceita / n)}</div>
+                      <div className="sc-n">{money0(totReceita)} recebidos no total</div>
+                    </div>
+                    <div className="scard">
+                      <div className="sc-k">Atendimentos lançados</div>
+                      <div className="sc-v">{nBR(totAtend, 0)}</div>
+                      <div className="sc-n">média de {nBR(totAtend / n, 1)} por mês</div>
+                    </div>
+                    <div className="scard">
+                      <div className="sc-k">Real × planejado</div>
+                      <div className={`sc-v${desvio < 0 ? " neg" : " gain"}`}>
+                        {desvio >= 0 ? "+" : ""}
+                        {money0(desvio)}
+                      </div>
+                      <div className="sc-n">plano previa {money0(totPrevisto)} no mesmo período</div>
+                    </div>
+                  </div>
+                )}
+
+                <div className="panel">
+                  <h2>Realidade mês a mês</h2>
+                  <div className="p-desc">
+                    Lance o que de fato aconteceu: atendimentos feitos, o que entrou de receita, os
+                    pedidos de insumos, os custos fixos pagos e outros gastos (impostos, taxas,
+                    imprevistos). O resultado do mês e a comparação com o planejado saem sozinhos.
+                  </div>
+                  {n > 0 && (
+                    <div className="tbl-scroll">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>Mês</th>
+                            <th>Atend.</th>
+                            <th>Receita (R$)</th>
+                            <th>Compras de insumos</th>
+                            <th>Custos fixos</th>
+                            <th>Outros gastos</th>
+                            <th>Resultado</th>
+                            <th>Previsto</th>
+                            <th>Diferença</th>
+                            <th />
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {dados.reais.map((m, i) => {
+                            const res = resultadoDe(m);
+                            const prev = previstoDoIndice(i);
+                            const dif = res - prev;
+                            return (
+                              <tr key={`re-${versao}-${i}`}>
+                                <td className="edit">
+                                  <input
+                                    className="tin mes"
+                                    type="month"
+                                    defaultValue={m.mes}
+                                    aria-label="Mês do lançamento"
+                                    onChange={(e) => editaReal(i, "mes", e.target.value)}
+                                  />
+                                </td>
+                                <td className="edit">
+                                  <input className="tin" type="number" step="1" defaultValue={m.atend} aria-label="Atendimentos realizados" onChange={(e) => editaReal(i, "atend", e.target.value)} />
+                                </td>
+                                <td className="edit">
+                                  <input className="tin" type="number" step="50" defaultValue={m.receita} aria-label="Receita recebida" onChange={(e) => editaReal(i, "receita", e.target.value)} />
+                                </td>
+                                <td className="edit">
+                                  <input className="tin" type="number" step="50" defaultValue={m.compras} aria-label="Compras de insumos" onChange={(e) => editaReal(i, "compras", e.target.value)} />
+                                </td>
+                                <td className="edit">
+                                  <input className="tin" type="number" step="50" defaultValue={m.fixos} aria-label="Custos fixos pagos" onChange={(e) => editaReal(i, "fixos", e.target.value)} />
+                                </td>
+                                <td className="edit">
+                                  <input className="tin" type="number" step="50" defaultValue={m.outros} aria-label="Outros gastos" onChange={(e) => editaReal(i, "outros", e.target.value)} />
+                                </td>
+                                <td className={res >= 0 ? "pos" : "neg"}>{money(res)}</td>
+                                <td>{money(prev)}</td>
+                                <td className={dif >= 0 ? "pos" : "neg"}>
+                                  {dif >= 0 ? "+" : ""}
+                                  {money(dif)}
+                                </td>
+                                <td>
+                                  <button
+                                    className="del-btn"
+                                    title="Remover mês"
+                                    onClick={() => {
+                                      setDados((d) => ({ ...d, reais: d.reais.filter((_, j) => j !== i) }));
+                                      remonta();
+                                    }}
+                                  >
+                                    ×
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                        <tfoot>
+                          <tr className="tot">
+                            <td>Total</td>
+                            <td>{nBR(totAtend, 0)}</td>
+                            <td>{money(totReceita)}</td>
+                            <td>{money(dados.reais.reduce((a, m) => a + m.compras, 0))}</td>
+                            <td>{money(dados.reais.reduce((a, m) => a + m.fixos, 0))}</td>
+                            <td>{money(dados.reais.reduce((a, m) => a + m.outros, 0))}</td>
+                            <td className={totResultado >= 0 ? "pos" : "neg"}>{money(totResultado)}</td>
+                            <td>{money(totPrevisto)}</td>
+                            <td className={desvio >= 0 ? "pos" : "neg"}>
+                              {desvio >= 0 ? "+" : ""}
+                              {money(desvio)}
+                            </td>
+                            <td />
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
+                  <div className="tbl-actions">
+                    <button className="add-btn" onClick={addMes}>
+                      + lançar mês
+                    </button>
+                    {n === 0 && (
+                      <span className="sc-status">
+                        nenhum mês lançado ainda: comece pelo seu mês atual
+                      </span>
+                    )}
+                  </div>
+                  <div className="hint" style={{ fontSize: ".68rem", color: "var(--faint)", marginTop: 12 }}>
+                    Visão de caixa simples: Resultado = receita − compras − fixos − outros. Ao
+                    lançar um mês novo, os custos fixos já vêm preenchidos com o valor do seu
+                    planejamento (ajuste para o que foi pago de verdade). Impostos e taxas de
+                    cartão entram em Outros gastos (no MEI, o DAS já está nos fixos). Previsto = o
+                    lucro do mês correspondente na aba Projeção, respeitando a rampa: o 1º
+                    lançamento compara com o mês 1, o 2º com o mês 2, e assim por diante.
+                  </div>
+                </div>
+              </>
+            );
+          })()}
         </div>
       </div>
     </div>
