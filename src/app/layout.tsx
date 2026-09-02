@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Bodoni_Moda, Poppins, IBM_Plex_Mono } from "next/font/google";
+import { Bodoni_Moda, Inter, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 
 const bodoni = Bodoni_Moda({
@@ -7,10 +7,9 @@ const bodoni = Bodoni_Moda({
   variable: "--font-bodoni",
 });
 
-const poppins = Poppins({
+const inter = Inter({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-poppins",
+  variable: "--font-inter",
 });
 
 const plexMono = IBM_Plex_Mono({
@@ -27,10 +26,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="pt-BR">
-      <body className={`${bodoni.variable} ${poppins.variable} ${plexMono.variable}`}>
-        {children}
-      </body>
+    <html lang="pt-BR" className={`${bodoni.variable} ${inter.variable} ${plexMono.variable}`}>
+      <body>{children}</body>
     </html>
   );
 }
