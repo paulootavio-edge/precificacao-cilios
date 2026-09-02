@@ -1,4 +1,4 @@
-import type { Dados, MesReal, Produto, Servico } from "./calc";
+import type { Atendimento, Dados, Gasto, LancData, Produto, Servico } from "./calc";
 
 /*
  * consumo: quantas "aplicações" de cada produto o procedimento gasta.
@@ -93,19 +93,55 @@ export const DADOS_PADRAO: Dados = {
 };
 
 export const STORAGE_KEY = "lashfinance:dados:v1";
-export const REAIS_KEY = "lashfinance:reais:v1";
+export const LANC_KEY = "lashfinance:lanc:v1";
 
-/* aceita lançamentos de qualquer origem (localStorage, nuvem, versões antigas) */
-export function sanitizarReais(raw: unknown): MesReal[] {
-  if (!Array.isArray(raw)) return [];
-  return raw.map((m) => ({
-    mes: typeof m?.mes === "string" ? m.mes : "",
-    atend: typeof m?.atend === "number" ? m.atend : 0,
-    receita: typeof m?.receita === "number" ? m.receita : 0,
-    compras: typeof m?.compras === "number" ? m.compras : 0,
-    fixos: typeof m?.fixos === "number" ? m.fixos : 0,
-    outros: typeof m?.outros === "number" ? m.outros : 0,
-  }));
+/* aceita lançamentos de qualquer origem (localStorage, nuvem, versões antigas).
+   O formato antigo era um array de meses agregados: vira lançamentos avulsos no dia 15. */
+export function sanitizarLanc(raw: unknown): LancData {
+  const vazio: LancData = { atendimentos: [], gastos: [] };
+  if (!raw || typeof raw !== "object") return vazio;
+
+  if (Array.isArray(raw)) {
+    const atendimentos: Atendimento[] = [];
+    const gastos: Gasto[] = [];
+    for (const m of raw as Array<Record<string, unknown>>) {
+      const mes = typeof m?.mes === "string" && /^\d{4}-\d{2}$/.test(m.mes) ? m.mes : null;
+      if (!mes) continue;
+      const num = (x: unknown) => (typeof x === "number" && isFinite(x) ? x : 0);
+      if (num(m.receita) > 0)
+        atendimentos.push({ id: novoId(), data: `${mes}-15`, servico: "Mês agregado (versão antiga)", valor: num(m.receita), cliente: "" });
+      if (num(m.compras) > 0) gastos.push({ id: novoId(), data: `${mes}-15`, tipo: "insumos", desc: "Compras do mês", valor: num(m.compras) });
+      if (num(m.fixos) > 0) gastos.push({ id: novoId(), data: `${mes}-15`, tipo: "fixo", desc: "Custos fixos do mês", valor: num(m.fixos) });
+      if (num(m.outros) > 0) gastos.push({ id: novoId(), data: `${mes}-15`, tipo: "outro", desc: "Outros gastos do mês", valor: num(m.outros) });
+    }
+    return { atendimentos, gastos };
+  }
+
+  const o = raw as { atendimentos?: unknown; gastos?: unknown };
+  const dataOk = (d: unknown) => typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d);
+  const atendimentos: Atendimento[] = Array.isArray(o.atendimentos)
+    ? (o.atendimentos as Array<Record<string, unknown>>)
+        .filter((a) => dataOk(a?.data))
+        .map((a) => ({
+          id: typeof a.id === "string" && a.id ? a.id : novoId(),
+          data: a.data as string,
+          servico: typeof a.servico === "string" ? a.servico : "",
+          valor: typeof a.valor === "number" && isFinite(a.valor) ? a.valor : 0,
+          cliente: typeof a.cliente === "string" ? a.cliente : "",
+        }))
+    : [];
+  const gastos: Gasto[] = Array.isArray(o.gastos)
+    ? (o.gastos as Array<Record<string, unknown>>)
+        .filter((g) => dataOk(g?.data))
+        .map((g) => ({
+          id: typeof g.id === "string" && g.id ? g.id : novoId(),
+          data: g.data as string,
+          tipo: g.tipo === "fixo" || g.tipo === "outro" ? g.tipo : "insumos",
+          desc: typeof g.desc === "string" ? g.desc : "",
+          valor: typeof g.valor === "number" && isFinite(g.valor) ? g.valor : 0,
+        }))
+    : [];
+  return { atendimentos, gastos };
 }
 
 export function clonePadrao(): Dados {

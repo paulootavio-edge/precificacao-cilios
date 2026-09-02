@@ -274,6 +274,21 @@ td.edit { background: #fdfdfb; }
 .tin:focus { border-color: var(--ink); box-shadow: 0 0 0 3px rgba(20, 20, 20, 0.07); }
 .tin.name { font-family: var(--font-body); font-weight: 500; width: 150px; text-align: left; font-size: 0.75rem; }
 .tin.mes { width: 132px; text-align: left; font-size: 0.7rem; }
+
+/* formulários de lançamento (CRM) */
+.lanc-form { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 10px; align-items: end; }
+.lanc-form .lf label { display: block; font-size: 0.66rem; font-weight: 400; color: var(--muted); margin-bottom: 4px; }
+.lanc-form .lf.grande { grid-column: span 2; }
+.lanc-form .btn { grid-column: span 2; padding: 10px; }
+.fsel {
+  width: 100%; border: 1px solid var(--border); border-radius: var(--radius-s);
+  padding: 8px 9px; font-size: 0.76rem; background: #fff; outline: none; color: var(--ink);
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+.fsel:focus { border-color: var(--ink); box-shadow: 0 0 0 3px rgba(20, 20, 20, 0.07); }
+.fsel.num { font-family: var(--font-mono); text-align: right; }
+.mes-nav { display: flex; align-items: center; gap: 10px; }
+.mes-nav .fsel { width: auto; min-width: 140px; }
 tfoot td { border-top: 1px solid var(--border); border-bottom: none; background: var(--surface); font-weight: 500; }
 tfoot td:first-child { font-family: var(--font-body); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
 .tbl-actions { display: flex; align-items: center; gap: 16px; margin-top: 14px; flex-wrap: wrap; }

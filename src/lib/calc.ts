@@ -4,16 +4,23 @@ export type Servico = { n: string; p: number; d: number; m: number; consumo: Rec
 export type ItemValor = { n: string; v: number };
 export type Regime = "mei" | "simples" | "autonomo";
 
-/* um mês real lançado pela usuária: o que de fato aconteceu.
-   Lançamentos são a realidade única da conta, independentes de cenário. */
-export type MesReal = {
-  mes: string; // "2026-09"
-  atend: number; // atendimentos realizados
-  receita: number; // receita recebida no mês
-  compras: number; // pedidos/compras de insumos
-  fixos: number; // custos fixos pagos
-  outros: number; // outros gastos (imposto, taxa, imprevisto)
+/* CRM de lançamentos: cada atendimento e cada gasto registrados individualmente.
+   São a realidade única da conta, independentes de cenário; o mês é agregado deles. */
+export type Atendimento = {
+  id: string;
+  data: string; // "2026-09-02"
+  servico: string; // nome do procedimento no momento do lançamento
+  valor: number; // valor cobrado
+  cliente: string; // opcional
 };
+export type Gasto = {
+  id: string;
+  data: string;
+  tipo: "insumos" | "fixo" | "outro";
+  desc: string;
+  valor: number;
+};
+export type LancData = { atendimentos: Atendimento[]; gastos: Gasto[] };
 
 export type Dados = {
   regime: Regime;

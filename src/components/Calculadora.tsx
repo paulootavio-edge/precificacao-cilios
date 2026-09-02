@@ -4,8 +4,9 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
-import { calc, custoAplicacao, money, money0, nBR, pctBR, type Dados, type MesReal, type Regime, HORIZONTE } from "@/lib/calc";
-import { clonePadrao, migrarDados, novoId, sanitizarReais, REAIS_KEY, STORAGE_KEY } from "@/lib/defaults";
+import { calc, custoAplicacao, money, money0, nBR, pctBR, type Dados, type Gasto, type LancData, type Regime, HORIZONTE } from "@/lib/calc";
+import { clonePadrao, migrarDados, novoId, sanitizarLanc, LANC_KEY, STORAGE_KEY } from "@/lib/defaults";
+import { AnoChart, MesChart } from "./LancCharts";
 import { getSupabase } from "@/lib/supabase";
 import PayChart from "./PayChart";
 
@@ -21,21 +22,15 @@ const ABAS: { id: Aba; label: string; titulo: string; sub: string }[] = [
   { id: "lancamentos", label: "Lançamentos", titulo: "Lançamentos mensais", sub: "Registre a realidade de cada mês e compare com o que foi planejado" },
 ];
 
-function proximoMes(reais: MesReal[]): string {
-  if (reais.length > 0) {
-    const m = /^(\d{4})-(\d{2})$/.exec(reais[reais.length - 1].mes);
-    if (m) {
-      let ano = +m[1];
-      let mes = +m[2] + 1;
-      if (mes > 12) {
-        mes = 1;
-        ano++;
-      }
-      return `${ano}-${String(mes).padStart(2, "0")}`;
-    }
-  }
+function hojeISO(): string {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+const ROTULO_MES = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+function rotuloMes(m: string): string {
+  const [ano, mm] = m.split("-");
+  return `${ROTULO_MES[+mm - 1] ?? mm}/${ano}`;
 }
 
 function Icone({ n }: { n: Aba | "sair" | "entrar" | "recolher" | "expandir" }) {
@@ -114,9 +109,17 @@ export default function Calculadora() {
   const [sideMin, setSideMin] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [expandido, setExpandido] = useState<number | null>(null);
-  const [reais, setReais] = useState<MesReal[]>([]);
-  const [reaisSync, setReaisSync] = useState<"init" | "pronto">("init");
+  const [lanc, setLanc] = useState<LancData>({ atendimentos: [], gastos: [] });
+  const [lancSync, setLancSync] = useState<"init" | "pronto">("init");
   const [lancStatus, setLancStatus] = useState("");
+  const [mesSel, setMesSel] = useState<string>(() => hojeISO().slice(0, 7));
+  const [fa, setFa] = useState({ data: hojeISO(), servico: "", valor: 0, cliente: "" });
+  const [fg, setFg] = useState<{ data: string; tipo: Gasto["tipo"]; desc: string; valor: number }>({
+    data: hojeISO(),
+    tipo: "insumos",
+    desc: "",
+    valor: 0,
+  });
   const dadosRef = useRef(dados);
   dadosRef.current = dados;
 
@@ -143,15 +146,15 @@ export default function Calculadora() {
         setDados(migrarDados(JSON.parse(raw)));
         setVersao((v) => v + 1);
       }
-      const rawReais = localStorage.getItem(REAIS_KEY);
-      if (rawReais) setReais(sanitizarReais(JSON.parse(rawReais)));
+      const rawLanc = localStorage.getItem(LANC_KEY) ?? localStorage.getItem("lashfinance:reais:v1");
+      if (rawLanc) setLanc(sanitizarLanc(JSON.parse(rawLanc)));
     } catch {}
   }, []);
 
   /* lançamentos: realidade única da conta, sincronizada sozinha com a nuvem */
   useEffect(() => {
     if (!user) {
-      setReaisSync("init");
+      setLancSync("init");
       return;
     }
     let ativo = true;
@@ -161,11 +164,11 @@ export default function Calculadora() {
         .select("dados")
         .maybeSingle();
       if (!ativo) return;
-      if (!error && data?.dados && Array.isArray(data.dados) && data.dados.length > 0) {
-        setReais(sanitizarReais(data.dados));
-        setVersao((v) => v + 1);
+      if (!error && data?.dados) {
+        const nuvem = sanitizarLanc(data.dados);
+        if (nuvem.atendimentos.length > 0 || nuvem.gastos.length > 0) setLanc(nuvem);
       }
-      setReaisSync("pronto");
+      setLancSync("pronto");
     })();
     return () => {
       ativo = false;
@@ -175,18 +178,25 @@ export default function Calculadora() {
   useEffect(() => {
     const t = setTimeout(() => {
       try {
-        localStorage.setItem(REAIS_KEY, JSON.stringify(reais));
+        localStorage.setItem(LANC_KEY, JSON.stringify(lanc));
       } catch {}
-      if (user && reaisSync === "pronto") {
+      if (user && lancSync === "pronto") {
         setLancStatus("salvando...");
         void getSupabase()
           .from("lancamentos")
-          .upsert({ user_id: user.id, dados: reais })
+          .upsert({ user_id: user.id, dados: lanc })
           .then(({ error }) => setLancStatus(error ? "erro ao salvar" : "salvo na sua conta"));
       }
     }, 700);
     return () => clearTimeout(t);
-  }, [reais, user, reaisSync]);
+  }, [lanc, user, lancSync]);
+
+  /* o formulário de atendimento nasce com o primeiro procedimento e o preço dele */
+  useEffect(() => {
+    if (!fa.servico && dados.servicos.length > 0) {
+      setFa((f) => ({ ...f, servico: dados.servicos[0].n, valor: dados.servicos[0].p }));
+    }
+  }, [dados.servicos, fa.servico]);
   useEffect(() => {
     const t = setTimeout(() => {
       try {
@@ -1301,184 +1311,260 @@ export default function Calculadora() {
             </>
           )}
 
-          {/* ================= LANÇAMENTOS (módulo 2) ================= */}
+          {/* ================= LANÇAMENTOS (CRM) ================= */}
           {aba === "lancamentos" && (() => {
-            const previstoDoIndice = (i: number) => {
-              const idx = Math.min(i + 1, r.serie.length - 1);
-              return r.serie[idx].lucro;
+            const mesDe = (d: string) => d.slice(0, 7);
+            const atMes = lanc.atendimentos
+              .filter((a) => mesDe(a.data) === mesSel)
+              .sort((a, b) => a.data.localeCompare(b.data));
+            const gaMes = lanc.gastos
+              .filter((g) => mesDe(g.data) === mesSel)
+              .sort((a, b) => a.data.localeCompare(b.data));
+            const recMes = atMes.reduce((sum, a) => sum + a.valor, 0);
+            const gasMes = gaMes.reduce((sum, g) => sum + g.valor, 0);
+            const resMes = recMes - gasMes;
+            const mesesSet = new Set<string>([mesSel, hojeISO().slice(0, 7)]);
+            lanc.atendimentos.forEach((a) => mesesSet.add(mesDe(a.data)));
+            lanc.gastos.forEach((g) => mesesSet.add(mesDe(g.data)));
+            const meses = Array.from(mesesSet).sort().reverse();
+            const precoDe = (nome: string) => dados.servicos.find((sv) => sv.n === nome)?.p ?? 0;
+            const tipoRotulo: Record<Gasto["tipo"], string> = { insumos: "Insumos", fixo: "Custo fixo", outro: "Outro" };
+            const addAtendimento = () => {
+              if (!fa.data || !fa.servico) return;
+              setLanc((l) => ({
+                ...l,
+                atendimentos: [
+                  ...l.atendimentos,
+                  { id: novoId(), data: fa.data, servico: fa.servico, valor: fa.valor, cliente: fa.cliente.trim() },
+                ],
+              }));
+              setMesSel(mesDe(fa.data));
+              setFa((f) => ({ ...f, cliente: "" }));
             };
-            const resultadoDe = (m: MesReal) => m.receita - m.compras - m.fixos - m.outros;
-            const n = reais.length;
-            const totReceita = reais.reduce((a, m) => a + m.receita, 0);
-            const totGastos = reais.reduce((a, m) => a + m.compras + m.fixos + m.outros, 0);
-            const totAtend = reais.reduce((a, m) => a + m.atend, 0);
-            const totResultado = totReceita - totGastos;
-            const totPrevisto = reais.reduce((a, _m, i) => a + previstoDoIndice(i), 0);
-            const desvio = totResultado - totPrevisto;
-            const editaReal = (i: number, campo: keyof MesReal, valor: string) =>
-              setReais((rs) => {
-                const novo = [...rs];
-                novo[i] = { ...novo[i], [campo]: campo === "mes" ? valor : parseNum(valor) };
-                return novo;
-              });
-            const addMes = () => {
-              setReais((rs) => [
-                ...rs,
-                {
-                  mes: proximoMes(rs),
-                  atend: 0,
-                  receita: 0,
-                  compras: 0,
-                  fixos: Math.round(r.fixosTotais),
-                  outros: 0,
-                },
-              ]);
-              remonta();
+            const addGasto = () => {
+              if (!fg.data || fg.valor <= 0) return;
+              setLanc((l) => ({
+                ...l,
+                gastos: [
+                  ...l.gastos,
+                  { id: novoId(), data: fg.data, tipo: fg.tipo, desc: fg.desc.trim() || tipoRotulo[fg.tipo], valor: fg.valor },
+                ],
+              }));
+              setMesSel(mesDe(fg.data));
+              setFg((f) => ({ ...f, desc: "", valor: 0 }));
             };
             return (
               <>
-                {n > 0 && (
-                  <div className="cards4">
-                    <div className="scard">
-                      <div className="sc-k">Resultado acumulado (real)</div>
-                      <div className={`sc-v${totResultado < 0 ? " neg" : " gain"}`}>{money0(totResultado)}</div>
-                      <div className="sc-n">{n} {n === 1 ? "mês lançado" : "meses lançados"}</div>
+                <div className="cols2">
+                  <div className="panel">
+                    <h2>Lançar atendimento</h2>
+                    <div className="p-desc">
+                      Terminou um atendimento? Registre aqui. Cada lançamento vira um registro seu:
+                      é o seu CRM nascendo.
                     </div>
-                    <div className="scard">
-                      <div className="sc-k">Receita média / mês</div>
-                      <div className="sc-v">{money0(totReceita / n)}</div>
-                      <div className="sc-n">{money0(totReceita)} recebidos no total</div>
-                    </div>
-                    <div className="scard">
-                      <div className="sc-k">Atendimentos lançados</div>
-                      <div className="sc-v">{nBR(totAtend, 0)}</div>
-                      <div className="sc-n">média de {nBR(totAtend / n, 1)} por mês</div>
-                    </div>
-                    <div className="scard">
-                      <div className="sc-k">Real × planejado</div>
-                      <div className={`sc-v${desvio < 0 ? " neg" : " gain"}`}>
-                        {desvio >= 0 ? "+" : ""}
-                        {money0(desvio)}
+                    <div className="lanc-form">
+                      <div className="lf">
+                        <label>Data</label>
+                        <input className="fsel" type="date" value={fa.data} onChange={(e) => setFa({ ...fa, data: e.target.value })} />
                       </div>
-                      <div className="sc-n">plano previa {money0(totPrevisto)} no mesmo período</div>
+                      <div className="lf">
+                        <label>Procedimento</label>
+                        <select
+                          className="fsel"
+                          value={fa.servico}
+                          onChange={(e) => setFa({ ...fa, servico: e.target.value, valor: precoDe(e.target.value) })}
+                        >
+                          {dados.servicos.map((sv) => (
+                            <option key={sv.n} value={sv.n}>
+                              {sv.n}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="lf">
+                        <label>Valor (R$)</label>
+                        <input className="fsel num" type="number" step="5" value={fa.valor} onChange={(e) => setFa({ ...fa, valor: parseNum(e.target.value) })} />
+                      </div>
+                      <div className="lf grande">
+                        <label>Cliente (opcional)</label>
+                        <input className="fsel" type="text" placeholder="nome da cliente" value={fa.cliente} onChange={(e) => setFa({ ...fa, cliente: e.target.value })} />
+                      </div>
+                      <button className="btn" onClick={addAtendimento}>
+                        Lançar
+                      </button>
                     </div>
                   </div>
-                )}
+                  <div className="panel">
+                    <h2>Lançar gasto</h2>
+                    <div className="p-desc">
+                      Pedido de insumos, custo fixo pago, taxa de cartão, imprevisto: tudo que saiu.
+                    </div>
+                    <div className="lanc-form">
+                      <div className="lf">
+                        <label>Data</label>
+                        <input className="fsel" type="date" value={fg.data} onChange={(e) => setFg({ ...fg, data: e.target.value })} />
+                      </div>
+                      <div className="lf">
+                        <label>Tipo</label>
+                        <select className="fsel" value={fg.tipo} onChange={(e) => setFg({ ...fg, tipo: e.target.value as Gasto["tipo"] })}>
+                          <option value="insumos">Compra de insumos</option>
+                          <option value="fixo">Custo fixo</option>
+                          <option value="outro">Outro gasto</option>
+                        </select>
+                      </div>
+                      <div className="lf">
+                        <label>Valor (R$)</label>
+                        <input className="fsel num" type="number" step="10" value={fg.valor === 0 ? "" : fg.valor} onChange={(e) => setFg({ ...fg, valor: parseNum(e.target.value) })} />
+                      </div>
+                      <div className="lf grande">
+                        <label>Descrição</label>
+                        <input className="fsel" type="text" placeholder="ex.: pedido de cola e fios" value={fg.desc} onChange={(e) => setFg({ ...fg, desc: e.target.value })} />
+                      </div>
+                      <button className="btn ghost" onClick={addGasto}>
+                        Lançar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mes-nav">
+                  <span className="sc-label">Vendo o mês</span>
+                  <select className="fsel" value={mesSel} onChange={(e) => setMesSel(e.target.value)}>
+                    {meses.map((m) => (
+                      <option key={m} value={m}>
+                        {rotuloMes(m)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="cards4">
+                  <div className="scard">
+                    <div className="sc-k">Receita de {rotuloMes(mesSel)}</div>
+                    <div className={`sc-v${recMes > 0 ? " gain" : ""}`}>{money0(recMes)}</div>
+                    <div className="sc-n">{atMes.length} {atMes.length === 1 ? "atendimento lançado" : "atendimentos lançados"}</div>
+                  </div>
+                  <div className="scard">
+                    <div className="sc-k">Gastos de {rotuloMes(mesSel)}</div>
+                    <div className="sc-v">{money0(gasMes)}</div>
+                    <div className="sc-n">{gaMes.length} {gaMes.length === 1 ? "lançamento" : "lançamentos"} de saída</div>
+                  </div>
+                  <div className="scard">
+                    <div className="sc-k">Resultado do mês</div>
+                    <div className={`sc-v${resMes < 0 ? " neg" : " gain"}`}>{money0(resMes)}</div>
+                    <div className="sc-n">receita menos gastos lançados</div>
+                  </div>
+                  <div className="scard">
+                    <div className="sc-k">Ticket médio do mês</div>
+                    <div className="sc-v">{atMes.length > 0 ? money0(recMes / atMes.length) : "···"}</div>
+                    <div className="sc-n">
+                      plano prevê {money0(r.ticket)} por atendimento
+                    </div>
+                  </div>
+                </div>
 
                 <div className="panel">
-                  <h2>Realidade mês a mês</h2>
+                  <h2>Crescimento de {rotuloMes(mesSel)}</h2>
                   <div className="p-desc">
-                    Lance o que de fato aconteceu: atendimentos feitos, o que entrou de receita, os
-                    pedidos de insumos, os custos fixos pagos e outros gastos (impostos, taxas,
-                    imprevistos). O resultado do mês e a comparação com o planejado saem sozinhos.
+                    Barras = receita de cada dia (os picos e os vales); linha = receita acumulada ao
+                    longo do mês.
                   </div>
-                  {n > 0 && (
-                    <div className="tbl-scroll">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>Mês</th>
-                            <th>Atend.</th>
-                            <th>Receita (R$)</th>
-                            <th>Compras de insumos</th>
-                            <th>Custos fixos</th>
-                            <th>Outros gastos</th>
-                            <th>Resultado</th>
-                            <th>Previsto</th>
-                            <th>Diferença</th>
-                            <th />
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {reais.map((m, i) => {
-                            const res = resultadoDe(m);
-                            const prev = previstoDoIndice(i);
-                            const dif = res - prev;
-                            return (
-                              <tr key={`re-${versao}-${i}`}>
-                                <td className="edit">
-                                  <input
-                                    className="tin mes"
-                                    type="month"
-                                    defaultValue={m.mes}
-                                    aria-label="Mês do lançamento"
-                                    onChange={(e) => editaReal(i, "mes", e.target.value)}
-                                  />
+                  {atMes.length > 0 ? (
+                    <MesChart mes={mesSel} atendimentos={atMes} />
+                  ) : (
+                    <div className="sc-status">nenhum atendimento lançado em {rotuloMes(mesSel)} ainda</div>
+                  )}
+                </div>
+
+                <div className="panel">
+                  <h2>Resultado de {mesSel.slice(0, 4)}, mês a mês</h2>
+                  <div className="p-desc">
+                    Receita menos gastos de cada mês do ano. O mês que você está vendo fica em
+                    destaque.
+                  </div>
+                  <AnoChart ano={mesSel.slice(0, 4)} atendimentos={lanc.atendimentos} gastos={lanc.gastos} mesSel={mesSel} />
+                </div>
+
+                <div className="cols2">
+                  <div className="panel">
+                    <h2>Atendimentos de {rotuloMes(mesSel)}</h2>
+                    {atMes.length > 0 ? (
+                      <div className="tbl-scroll">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Dia</th>
+                              <th>Cliente</th>
+                              <th>Procedimento</th>
+                              <th>Valor</th>
+                              <th />
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {atMes.map((a) => (
+                              <tr key={a.id}>
+                                <td>{a.data.slice(8, 10)}</td>
+                                <td style={{ textAlign: "left" }}>
+                                  <span className="svcname">{a.cliente || "· · ·"}</span>
                                 </td>
-                                <td className="edit">
-                                  <input className="tin" type="number" step="1" defaultValue={m.atend} aria-label="Atendimentos realizados" onChange={(e) => editaReal(i, "atend", e.target.value)} />
-                                </td>
-                                <td className="edit">
-                                  <input className="tin" type="number" step="50" defaultValue={m.receita} aria-label="Receita recebida" onChange={(e) => editaReal(i, "receita", e.target.value)} />
-                                </td>
-                                <td className="edit">
-                                  <input className="tin" type="number" step="50" defaultValue={m.compras} aria-label="Compras de insumos" onChange={(e) => editaReal(i, "compras", e.target.value)} />
-                                </td>
-                                <td className="edit">
-                                  <input className="tin" type="number" step="50" defaultValue={m.fixos} aria-label="Custos fixos pagos" onChange={(e) => editaReal(i, "fixos", e.target.value)} />
-                                </td>
-                                <td className="edit">
-                                  <input className="tin" type="number" step="50" defaultValue={m.outros} aria-label="Outros gastos" onChange={(e) => editaReal(i, "outros", e.target.value)} />
-                                </td>
-                                <td className={res >= 0 ? "pos" : "neg"}>{money(res)}</td>
-                                <td>{money(prev)}</td>
-                                <td className={dif >= 0 ? "pos" : "neg"}>
-                                  {dif >= 0 ? "+" : ""}
-                                  {money(dif)}
-                                </td>
+                                <td style={{ textAlign: "left" }}>{a.servico}</td>
+                                <td className="pos">{money(a.valor)}</td>
                                 <td>
                                   <button
                                     className="del-btn"
-                                    title="Remover mês"
-                                    onClick={() => {
-                                      setReais((rs) => rs.filter((_, j) => j !== i));
-                                      remonta();
-                                    }}
+                                    title="Remover lançamento"
+                                    onClick={() => setLanc((l) => ({ ...l, atendimentos: l.atendimentos.filter((x) => x.id !== a.id) }))}
                                   >
                                     ×
                                   </button>
                                 </td>
                               </tr>
-                            );
-                          })}
-                        </tbody>
-                        <tfoot>
-                          <tr className="tot">
-                            <td>Total</td>
-                            <td>{nBR(totAtend, 0)}</td>
-                            <td>{money(totReceita)}</td>
-                            <td>{money(reais.reduce((a, m) => a + m.compras, 0))}</td>
-                            <td>{money(reais.reduce((a, m) => a + m.fixos, 0))}</td>
-                            <td>{money(reais.reduce((a, m) => a + m.outros, 0))}</td>
-                            <td className={totResultado >= 0 ? "pos" : "neg"}>{money(totResultado)}</td>
-                            <td>{money(totPrevisto)}</td>
-                            <td className={desvio >= 0 ? "pos" : "neg"}>
-                              {desvio >= 0 ? "+" : ""}
-                              {money(desvio)}
-                            </td>
-                            <td />
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
-                  )}
-                  <div className="tbl-actions">
-                    <button className="add-btn" onClick={addMes}>
-                      + lançar mês
-                    </button>
-                    {n === 0 && (
-                      <span className="sc-status">
-                        nenhum mês lançado ainda: comece pelo seu mês atual
-                      </span>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="sc-status">nenhum atendimento neste mês</div>
                     )}
                   </div>
-                  <div className="hint" style={{ fontSize: ".68rem", color: "var(--faint)", marginTop: 12 }}>
-                    Visão de caixa simples: Resultado = receita − compras − fixos − outros. Ao
-                    lançar um mês novo, os custos fixos já vêm preenchidos com o valor do seu
-                    planejamento (ajuste para o que foi pago de verdade). Impostos e taxas de
-                    cartão entram em Outros gastos (no MEI, o DAS já está nos fixos). Previsto = o
-                    lucro do mês correspondente na aba Projeção, respeitando a rampa: o 1º
-                    lançamento compara com o mês 1, o 2º com o mês 2, e assim por diante.
+                  <div className="panel">
+                    <h2>Gastos de {rotuloMes(mesSel)}</h2>
+                    {gaMes.length > 0 ? (
+                      <div className="tbl-scroll">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>Dia</th>
+                              <th>Tipo</th>
+                              <th>Descrição</th>
+                              <th>Valor</th>
+                              <th />
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {gaMes.map((g) => (
+                              <tr key={g.id}>
+                                <td>{g.data.slice(8, 10)}</td>
+                                <td style={{ textAlign: "left" }}>{tipoRotulo[g.tipo]}</td>
+                                <td style={{ textAlign: "left" }}>{g.desc}</td>
+                                <td className="neg">{money(-g.valor)}</td>
+                                <td>
+                                  <button
+                                    className="del-btn"
+                                    title="Remover lançamento"
+                                    onClick={() => setLanc((l) => ({ ...l, gastos: l.gastos.filter((x) => x.id !== g.id) }))}
+                                  >
+                                    ×
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="sc-status">nenhum gasto neste mês</div>
+                    )}
                   </div>
                 </div>
               </>
