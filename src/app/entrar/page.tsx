@@ -1,12 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { getSupabase } from "@/lib/supabase";
 
 export default function Entrar() {
   const router = useRouter();
+
+  /* já logada? direto para o app */
+  useEffect(() => {
+    getSupabase()
+      .auth.getSession()
+      .then(({ data }) => {
+        if (data.session) router.replace("/");
+      });
+  }, [router]);
   const [modo, setModo] = useState<"entrar" | "cadastro">("entrar");
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
@@ -60,8 +68,8 @@ export default function Entrar() {
         <h1>{modo === "entrar" ? "Entrar" : "Criar conta"}</h1>
         <p className="sub">
           {modo === "entrar"
-            ? "Acesse os seus cenários salvos."
-            : "Salve os cenários do seu estúdio na nuvem, de graça."}
+            ? "Entre para acessar o financeiro do seu estúdio."
+            : "Crie sua conta gratuita e comece a precificar como gente grande."}
         </p>
         <form onSubmit={enviar}>
           <div className="field">
@@ -108,9 +116,6 @@ export default function Entrar() {
           )}
         </div>
       </div>
-      <Link href="/" className="auth-back">
-        ← voltar para a calculadora (funciona sem conta)
-      </Link>
     </div>
   );
 }

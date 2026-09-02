@@ -47,40 +47,40 @@ export default function PayChart({ serie, payback }: { serie: MesProj[]; payback
   return (
     <svg className="chart" viewBox={`0 0 ${W} ${Hc}`} role="img" aria-label="Caixa acumulado mês a mês e ponto de payback">
       {minV < 0 && (
-        <rect x={padL} y={y0} width={iw} height={padT + ih - y0} fill="#aa3f37" opacity="0.05" />
+        <rect x={padL} y={y0} width={iw} height={padT + ih - y0} fill="#e08b80" opacity="0.06" />
       )}
       {grid.map((gv, i) => (
         <g key={i}>
-          <line x1={padL} y1={Y(gv)} x2={padL + iw} y2={Y(gv)} stroke="#efece4" />
-          <text x={padL - 8} y={Y(gv) + 3} textAnchor="end" fontSize="10" fill="#9a9a9a" fontFamily="var(--font-mono)">
+          <line x1={padL} y1={Y(gv)} x2={padL + iw} y2={Y(gv)} stroke="rgba(255,255,255,0.07)" />
+          <text x={padL - 8} y={Y(gv) + 3} textAnchor="end" fontSize="10" fill="#877e6d" fontFamily="var(--font-mono)">
             {money0(gv)}
           </text>
         </g>
       ))}
       {minV < 0 && maxV > 0 && (
-        <line x1={padL} y1={Y(0)} x2={padL + iw} y2={Y(0)} stroke="#0a0a0a" strokeWidth="1.2" strokeDasharray="4 3" />
+        <line x1={padL} y1={Y(0)} x2={padL + iw} y2={Y(0)} stroke="#d6cfc0" strokeWidth="1.2" strokeDasharray="4 3" />
       )}
       {meses.map((m) => (
-        <text key={m} x={X(m)} y={padT + ih + 22} textAnchor="middle" fontSize="10" fill="#9a9a9a" fontFamily="var(--font-mono)">
+        <text key={m} x={X(m)} y={padT + ih + 22} textAnchor="middle" fontSize="10" fill="#877e6d" fontFamily="var(--font-mono)">
           {m}
         </text>
       ))}
-      <text x={padL + iw / 2} y={Hc - 2} textAnchor="middle" fontSize="10" fill="#9a9a9a" fontFamily="var(--font-body)">
+      <text x={padL + iw / 2} y={Hc - 2} textAnchor="middle" fontSize="10" fill="#877e6d" fontFamily="var(--font-body)">
         meses
       </text>
-      <path d={area} fill="#c5a253" opacity="0.12" />
-      <path d={line} fill="none" stroke="#9c7a2c" strokeWidth="2.6" strokeLinejoin="round" />
+      <path d={area} fill="#c5a253" opacity="0.15" />
+      <path d={line} fill="none" stroke="#c5a253" strokeWidth="2.6" strokeLinejoin="round" />
       {bx !== null && payback !== null && (
         <g>
-          <line x1={bx} y1={padT} x2={bx} y2={padT + ih} stroke="#4a7a55" strokeDasharray="3 3" />
-          <circle cx={bx} cy={Y(serie[payback].acum)} r="5.5" fill="#4a7a55" stroke="#fff" strokeWidth="2" />
+          <line x1={bx} y1={padT} x2={bx} y2={padT + ih} stroke="#86c29a" strokeDasharray="3 3" />
+          <circle cx={bx} cy={Y(serie[payback].acum)} r="5.5" fill="#86c29a" stroke="#0e0b07" strokeWidth="2" />
           <text
             x={anchorEnd ? bx - 8 : bx + 8}
             y={padT + 14}
             textAnchor={anchorEnd ? "end" : "start"}
             fontSize="11"
             fontWeight="600"
-            fill="#4a7a55"
+            fill="#86c29a"
             fontFamily="var(--font-display)"
           >
             investimento pago no mês {payback}

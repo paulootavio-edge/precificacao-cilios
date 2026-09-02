@@ -2,6 +2,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { calc, custoAplicacao, money, money0, nBR, pctBR, type Dados, type Regime, HORIZONTE } from "@/lib/calc";
 import { clonePadrao, migrarDados, novoId, STORAGE_KEY } from "@/lib/defaults";
@@ -77,10 +78,12 @@ function Num({
 }
 
 export default function Calculadora() {
+  const router = useRouter();
   const [aba, setAba] = useState<Aba>("visao");
   const [dados, setDados] = useState<Dados>(() => clonePadrao());
   const [versao, setVersao] = useState(0);
   const [user, setUser] = useState<User | null>(null);
+  const [authPronto, setAuthPronto] = useState(false);
   const [cenarios, setCenarios] = useState<CenarioMeta[]>([]);
   const [cenarioAtual, setCenarioAtual] = useState<string>("");
   const [status, setStatus] = useState<string>("");
@@ -113,12 +116,20 @@ export default function Calculadora() {
   /* sessão + cenários */
   useEffect(() => {
     const supabase = getSupabase();
-    supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null));
+    supabase.auth.getSession().then(({ data }) => {
+      setUser(data.session?.user ?? null);
+      setAuthPronto(true);
+    });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) =>
       setUser(session?.user ?? null)
     );
     return () => sub.subscription.unsubscribe();
   }, []);
+
+  /* app exige login: sem sessão, vai para /entrar */
+  useEffect(() => {
+    if (authPronto && !user) router.replace("/entrar");
+  }, [authPronto, user, router]);
 
   useEffect(() => {
     if (!user) {
@@ -251,6 +262,17 @@ export default function Calculadora() {
     verdictSub = `Depois de pagar seu pró-labore de ${money0(dados.proLabore)}, ainda sobram ${money0(sobra)}/mês para reinvestir ou formar reserva. Margem líquida de ${pctBR(r.margemLiq, 1)}.`;
   }
 
+  /* gate: nada renderiza antes da sessão ser resolvida */
+  if (!authPronto || !user) {
+    return (
+      <div className="gate">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/mark.svg" alt="INTERLASH" />
+        <span>Lash Finance</span>
+      </div>
+    );
+  }
+
   return (
     <div className="app">
       {/* ================= SIDEBAR ================= */}
@@ -379,12 +401,12 @@ export default function Calculadora() {
               <div className="cards4">
                 <div className="scard">
                   <div className="sc-k">Lucro líquido / mês</div>
-                  <div className={`sc-v${r.lucroPlena < 0 ? " neg" : ""}`}>{money0(r.lucroPlena)}</div>
+                  <div className={`sc-v hero${r.lucroPlena < 0 ? " neg" : ""}`}>{money0(r.lucroPlena)}</div>
                   <div className="sc-n">após insumos, impostos, cartão e fixos</div>
                 </div>
                 <div className="scard">
                   <div className="sc-k">Faturamento / mês</div>
-                  <div className="sc-v">{money0(r.receitaPlena)}</div>
+                  <div className="sc-v hero">{money0(r.receitaPlena)}</div>
                   <div className="sc-n">
                     {nBR(r.atendPlena, 0)} atendimentos · {nBR(r.horasProd, 0)}h produtivas
                   </div>
@@ -393,12 +415,12 @@ export default function Calculadora() {
                   <div className="sc-k">Payback do investimento</div>
                   {r.invest <= 0 ? (
                     <>
-                      <div className="sc-v">···</div>
+                      <div className="sc-v hero">···</div>
                       <div className="sc-n">nenhum valor em investimento inicial</div>
                     </>
                   ) : r.payback !== null ? (
                     <>
-                      <div className="sc-v">
+                      <div className="sc-v hero">
                         {r.payback} {r.payback === 1 ? "mês" : "meses"}
                       </div>
                       <div className="sc-n">recupera os {money0(r.invest)} investidos</div>
@@ -412,7 +434,7 @@ export default function Calculadora() {
                 </div>
                 <div className="scard">
                   <div className="sc-k">ROI em 12 meses</div>
-                  <div className={`sc-v${r.roi12 !== null && r.roi12 < 0 ? " neg" : ""}`}>
+                  <div className={`sc-v hero${r.roi12 !== null && r.roi12 < 0 ? " neg" : ""}`}>
                     {r.roi12 === null ? "···" : pctBR(r.roi12, 0)}
                   </div>
                   <div className="sc-n">lucro acumulado ÷ investimento inicial</div>
@@ -1062,11 +1084,11 @@ export default function Calculadora() {
                     Caixa acumulado (após investimento)
                   </span>
                   <span>
-                    <i style={{ background: "#1c1915", height: 2 }} />
+                    <i style={{ background: "#d6cfc0", height: 2 }} />
                     Zero
                   </span>
                   <span>
-                    <i style={{ background: "#3e7a52", height: 10, width: 10, borderRadius: "50%" }} />
+                    <i style={{ background: "#86c29a", height: 10, width: 10, borderRadius: "50%" }} />
                     Payback
                   </span>
                 </div>
