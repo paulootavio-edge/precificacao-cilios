@@ -111,6 +111,7 @@ export default function Calculadora() {
   const [expandido, setExpandido] = useState<number | null>(null);
   const [lanc, setLanc] = useState<LancData>({ atendimentos: [], gastos: [] });
   const [lancStatus, setLancStatus] = useState("");
+  const [negocioSync, setNegocioSync] = useState<"init" | "pronto">("init");
   const [mesSel, setMesSel] = useState<string>(() => hojeISO().slice(0, 7));
   const [fa, setFa] = useState({
     data: hojeISO(),
@@ -250,14 +251,41 @@ export default function Calculadora() {
       setFa((f) => ({ ...f, servico: dados.servicos[0].n, valor: dados.servicos[0].p }));
     }
   }, [dados.servicos, fa.servico]);
+  /* o negócio vivo da conta: carrega da nuvem ao entrar e salva sozinho a cada mudança */
+  useEffect(() => {
+    if (!user) {
+      setNegocioSync("init");
+      return;
+    }
+    let ativo = true;
+    (async () => {
+      const { data, error } = await getSupabase().from("negocio").select("dados").maybeSingle();
+      if (!ativo) return;
+      if (!error && data?.dados) {
+        setDados(migrarDados(data.dados));
+        setVersao((v) => v + 1);
+      }
+      setNegocioSync("pronto");
+    })();
+    return () => {
+      ativo = false;
+    };
+  }, [user]);
+
   useEffect(() => {
     const t = setTimeout(() => {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(dados));
       } catch {}
-    }, 400);
+      if (user && negocioSync === "pronto") {
+        void getSupabase()
+          .from("negocio")
+          .upsert({ user_id: user.id, dados })
+          .then(({ error }) => setStatus(error ? "erro ao salvar" : "salvo automaticamente"));
+      }
+    }, 800);
     return () => clearTimeout(t);
-  }, [dados]);
+  }, [dados, user, negocioSync]);
 
   /* sessão + cenários */
   useEffect(() => {
@@ -490,7 +518,7 @@ export default function Calculadora() {
                       setConfirmDelId(null);
                     }}
                   >
-                    {cenarios.find((c) => c.id === cenarioAtual)?.nome ?? "novo (não salvo)"}
+                    {cenarios.find((c) => c.id === cenarioAtual)?.nome ?? "meu negócio (atual)"}
                     <span style={{ fontSize: ".55rem" }}>▾</span>
                   </button>
                   {menuAberto && (
@@ -510,7 +538,7 @@ export default function Calculadora() {
                             setMenuAberto(false);
                           }}
                         >
-                          novo (não salvo)
+                          meu negócio (atual)
                         </button>
                         {cenarios.map((c) => (
                           <div className={`sc-row${c.id === cenarioAtual ? " atual" : ""}`} key={c.id}>
