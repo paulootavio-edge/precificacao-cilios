@@ -90,6 +90,7 @@ export const DADOS_PADRAO: Dados = {
     { n: "Estoque inicial de insumos", v: 600 },
     { n: "Decoração e recepção", v: 400 },
   ],
+  reais: [],
 };
 
 export const STORAGE_KEY = "lashfinance:dados:v1";
@@ -134,5 +135,15 @@ export function migrarDados(raw: unknown): Dados {
     return { n: s.n ?? "", p: s.p ?? 0, d: s.d ?? 0, m: s.m ?? 0, consumo };
   });
 
-  return { ...d, produtos, servicos };
+  const reaisRaw = Array.isArray(d.reais) ? d.reais : [];
+  const reais = reaisRaw.map((m) => ({
+    mes: typeof m?.mes === "string" ? m.mes : "",
+    atend: m?.atend ?? 0,
+    receita: m?.receita ?? 0,
+    compras: m?.compras ?? 0,
+    fixos: m?.fixos ?? 0,
+    outros: m?.outros ?? 0,
+  }));
+
+  return { ...d, produtos, servicos, reais };
 }

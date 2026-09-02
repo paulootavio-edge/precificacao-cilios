@@ -4,6 +4,16 @@ export type Servico = { n: string; p: number; d: number; m: number; consumo: Rec
 export type ItemValor = { n: string; v: number };
 export type Regime = "mei" | "simples" | "autonomo";
 
+/* um mês real lançado pela usuária: o que de fato aconteceu */
+export type MesReal = {
+  mes: string; // "2026-09"
+  atend: number; // atendimentos realizados
+  receita: number; // receita recebida no mês
+  compras: number; // pedidos/compras de insumos
+  fixos: number; // custos fixos pagos
+  outros: number; // outros gastos (imposto, taxa, imprevisto)
+};
+
 export type Dados = {
   regime: Regime;
   dasMei: number;
@@ -23,6 +33,7 @@ export type Dados = {
   servicos: Servico[];
   fixos: ItemValor[];
   capex: ItemValor[];
+  reais: MesReal[];
 };
 
 export type LinhaServico = {
