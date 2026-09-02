@@ -289,6 +289,16 @@ td.edit { background: #fdfdfb; }
 .fsel.num { font-family: var(--font-mono); text-align: right; }
 .mes-nav { display: flex; align-items: center; gap: 10px; }
 .mes-nav .fsel { width: auto; min-width: 140px; }
+.lanc-form .lf-add { display: flex; align-items: flex-end; }
+.lanc-form .lf-add .btn { width: 100%; padding: 8px; font-size: 0.66rem; }
+.itens-list { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.item-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  border: 1px solid var(--border); background: var(--surface); border-radius: 99px;
+  padding: 4px 11px; font-size: 0.7rem; font-family: var(--font-mono);
+}
+.item-chip button { border: none; background: none; color: var(--faint); cursor: pointer; font-size: 0.82rem; padding: 0; }
+.item-chip button:hover { color: var(--red); }
 tfoot td { border-top: 1px solid var(--border); border-bottom: none; background: var(--surface); font-weight: 500; }
 tfoot td:first-child { font-family: var(--font-body); font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
 .tbl-actions { display: flex; align-items: center; gap: 16px; margin-top: 14px; flex-wrap: wrap; }

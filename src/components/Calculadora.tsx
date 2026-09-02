@@ -113,7 +113,13 @@ export default function Calculadora() {
   const [lancSync, setLancSync] = useState<"init" | "pronto">("init");
   const [lancStatus, setLancStatus] = useState("");
   const [mesSel, setMesSel] = useState<string>(() => hojeISO().slice(0, 7));
-  const [fa, setFa] = useState({ data: hojeISO(), servico: "", valor: 0, cliente: "" });
+  const [fa, setFa] = useState({
+    data: hojeISO(),
+    servico: "",
+    valor: 0,
+    cliente: "",
+    itens: [] as { servico: string; valor: number }[],
+  });
   const [fg, setFg] = useState<{ data: string; tipo: Gasto["tipo"]; desc: string; valor: number }>({
     data: hojeISO(),
     tipo: "insumos",
@@ -1329,18 +1335,31 @@ export default function Calculadora() {
             const meses = Array.from(mesesSet).sort().reverse();
             const precoDe = (nome: string) => dados.servicos.find((sv) => sv.n === nome)?.p ?? 0;
             const tipoRotulo: Record<Gasto["tipo"], string> = { insumos: "Insumos", fixo: "Custo fixo", outro: "Outro" };
+            const itensDoLancamento =
+              fa.itens.length > 0 ? fa.itens : fa.servico ? [{ servico: fa.servico, valor: fa.valor }] : [];
+            const totalLancamento = itensDoLancamento.reduce((sum, it) => sum + it.valor, 0);
             const addAtendimento = () => {
-              if (!fa.data || !fa.servico) return;
+              if (!fa.data || itensDoLancamento.length === 0) return;
               setLanc((l) => ({
                 ...l,
                 atendimentos: [
                   ...l.atendimentos,
-                  { id: novoId(), data: fa.data, servico: fa.servico, valor: fa.valor, cliente: fa.cliente.trim() },
+                  ...itensDoLancamento.map((it) => ({
+                    id: novoId(),
+                    data: fa.data,
+                    servico: it.servico,
+                    valor: it.valor,
+                    cliente: fa.cliente.trim(),
+                  })),
                 ],
               }));
               setMesSel(mesDe(fa.data));
-              setFa((f) => ({ ...f, cliente: "" }));
+              setFa((f) => ({ ...f, cliente: "", itens: [] }));
             };
+            const addItem = () =>
+              setFa((f) =>
+                f.servico ? { ...f, itens: [...f.itens, { servico: f.servico, valor: f.valor }] } : f
+              );
             const addGasto = () => {
               if (!fg.data || fg.valor <= 0) return;
               setLanc((l) => ({
@@ -1359,8 +1378,8 @@ export default function Calculadora() {
                   <div className="panel">
                     <h2>Lançar atendimento</h2>
                     <div className="p-desc">
-                      Terminou um atendimento? Registre aqui. Cada lançamento vira um registro seu:
-                      é o seu CRM nascendo.
+                      Terminou um atendimento? Registre aqui. A cliente fez mais de um procedimento
+                      no dia? Use o "+ adicionar" e lance todos de uma vez: é o seu CRM nascendo.
                     </div>
                     <div className="lanc-form">
                       <div className="lf">
@@ -1385,12 +1404,34 @@ export default function Calculadora() {
                         <label>Valor (R$)</label>
                         <input className="fsel num" type="number" step="5" value={fa.valor} onChange={(e) => setFa({ ...fa, valor: parseNum(e.target.value) })} />
                       </div>
+                      <div className="lf lf-add">
+                        <button className="btn ghost" onClick={addItem} title="Adicionar este procedimento ao atendimento">
+                          + adicionar procedimento
+                        </button>
+                      </div>
+                      {fa.itens.length > 0 && (
+                        <div className="lf grande itens-list">
+                          {fa.itens.map((it, i) => (
+                            <span className="item-chip" key={`${it.servico}-${i}`}>
+                              {it.servico} · {money0(it.valor)}
+                              <button
+                                title="Remover do atendimento"
+                                onClick={() => setFa((f) => ({ ...f, itens: f.itens.filter((_, j) => j !== i) }))}
+                              >
+                                ×
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      )}
                       <div className="lf grande">
                         <label>Cliente (opcional)</label>
                         <input className="fsel" type="text" placeholder="nome da cliente" value={fa.cliente} onChange={(e) => setFa({ ...fa, cliente: e.target.value })} />
                       </div>
                       <button className="btn" onClick={addAtendimento}>
-                        Lançar
+                        {fa.itens.length > 1
+                          ? `Lançar ${fa.itens.length} procedimentos · ${money0(totalLancamento)}`
+                          : "Lançar"}
                       </button>
                     </div>
                   </div>
