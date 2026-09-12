@@ -320,9 +320,12 @@ tr.consumo-tr td, tr.consumo-tr:hover td { background: var(--surface) !important
 .cp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(235px, 1fr)); gap: 7px 26px; }
 .cp-item { display: grid; grid-template-columns: 1fr 58px 74px 24px; align-items: center; gap: 8px; }
 .cp-item .del-btn { height: 24px; font-size: 0.85rem; }
-.cp-add { display: flex; align-items: center; gap: 10px; margin-top: 14px; flex-wrap: wrap; }
-.cp-add .fsel { width: auto; min-width: 240px; }
+.cp-add { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--border); }
+.cp-add-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cp-add .fsel { width: auto; min-width: 230px; }
+.cp-add .fsel.curto { min-width: 0; width: 110px; }
 .cp-add .add-btn { width: auto; margin-top: 0; padding: 8px 16px; }
+.cp-add-hint { font-size: 0.64rem; color: var(--faint); }
 .cp-nome { font-family: var(--font-body); font-size: 0.72rem; color: var(--ink); text-align: left; white-space: normal; line-height: 1.25; }
 .cp-item .tin { width: 100%; }
 .cp-sub { font-size: 0.68rem; color: var(--faint); text-align: right; font-variant-numeric: tabular-nums; }

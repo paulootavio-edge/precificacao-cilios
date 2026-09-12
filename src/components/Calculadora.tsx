@@ -110,6 +110,7 @@ export default function Calculadora() {
   const [confirmReset, setConfirmReset] = useState(false);
   const [expandido, setExpandido] = useState<number | null>(null);
   const [novoInsumoSel, setNovoInsumoSel] = useState("");
+  const [novoProdForm, setNovoProdForm] = useState({ n: "", v: "", r: "" });
   const [lanc, setLanc] = useState<LancData>({ atendimentos: [], gastos: [] });
   const [lancStatus, setLancStatus] = useState("");
   const [negocioSync, setNegocioSync] = useState<"init" | "pronto">("init");
@@ -1156,39 +1157,97 @@ export default function Calculadora() {
                                           esta técnica ainda não tem insumos: inclua abaixo os que ela usa
                                         </div>
                                       )}
-                                      {foraDaReceita.length > 0 && (
-                                        <div className="cp-add">
-                                          <select
+                                      <div className="cp-add">
+                                        {foraDaReceita.length > 0 && (
+                                          <div className="cp-add-row">
+                                            <select
+                                              className="fsel"
+                                              value={selecionado}
+                                              aria-label="Insumo do catálogo para incluir"
+                                              onChange={(e) => setNovoInsumoSel(e.target.value)}
+                                            >
+                                              {foraDaReceita.map((p) => (
+                                                <option key={p.id} value={p.id}>
+                                                  {p.n} ({money(custoAplicacao(p))}/aplicação)
+                                                </option>
+                                              ))}
+                                            </select>
+                                            <button
+                                              className="add-btn"
+                                              onClick={() => {
+                                                if (!selecionado) return;
+                                                setDados((d) => {
+                                                  const servicos = [...d.servicos];
+                                                  servicos[i] = {
+                                                    ...servicos[i],
+                                                    consumo: { ...servicos[i].consumo, [selecionado]: 1 },
+                                                  };
+                                                  return { ...d, servicos };
+                                                });
+                                                setNovoInsumoSel("");
+                                              }}
+                                            >
+                                              + incluir nesta técnica
+                                            </button>
+                                          </div>
+                                        )}
+                                        <div className="cp-add-row">
+                                          <input
                                             className="fsel"
-                                            value={selecionado}
-                                            aria-label="Insumo do catálogo para incluir"
-                                            onChange={(e) => setNovoInsumoSel(e.target.value)}
-                                          >
-                                            {foraDaReceita.map((p) => (
-                                              <option key={p.id} value={p.id}>
-                                                {p.n} ({money(custoAplicacao(p))}/aplicação)
-                                              </option>
-                                            ))}
-                                          </select>
+                                            type="text"
+                                            placeholder="criar insumo novo (ex.: kit lifting)"
+                                            value={novoProdForm.n}
+                                            onChange={(e) => setNovoProdForm({ ...novoProdForm, n: e.target.value })}
+                                          />
+                                          <input
+                                            className="fsel num curto"
+                                            type="number"
+                                            step="1"
+                                            placeholder="preço R$"
+                                            value={novoProdForm.v}
+                                            aria-label="Preço do insumo novo"
+                                            onChange={(e) => setNovoProdForm({ ...novoProdForm, v: e.target.value })}
+                                          />
+                                          <input
+                                            className="fsel num curto"
+                                            type="number"
+                                            step="1"
+                                            placeholder="rende (apl.)"
+                                            value={novoProdForm.r}
+                                            aria-label="Quantas aplicações o insumo novo rende"
+                                            onChange={(e) => setNovoProdForm({ ...novoProdForm, r: e.target.value })}
+                                          />
                                           <button
                                             className="add-btn"
                                             onClick={() => {
-                                              if (!selecionado) return;
+                                              const nome = novoProdForm.n.trim();
+                                              if (!nome) return;
+                                              const preco = parseNum(novoProdForm.v);
+                                              const rende = Math.max(1, parseNum(novoProdForm.r) || 1);
+                                              const id = novoId();
                                               setDados((d) => {
                                                 const servicos = [...d.servicos];
                                                 servicos[i] = {
                                                   ...servicos[i],
-                                                  consumo: { ...servicos[i].consumo, [selecionado]: 1 },
+                                                  consumo: { ...servicos[i].consumo, [id]: 1 },
                                                 };
-                                                return { ...d, servicos };
+                                                return {
+                                                  ...d,
+                                                  produtos: [...d.produtos, { id, n: nome, v: preco, r: rende }],
+                                                  servicos,
+                                                };
                                               });
-                                              setNovoInsumoSel("");
+                                              setNovoProdForm({ n: "", v: "", r: "" });
                                             }}
                                           >
-                                            + incluir nesta técnica
+                                            + criar e incluir
                                           </button>
                                         </div>
-                                      )}
+                                        <div className="cp-add-hint">
+                                          O insumo criado aqui entra no seu catálogo (aba Insumos) e já
+                                          cai nesta técnica com quantidade 1.
+                                        </div>
+                                      </div>
                                     </>
                                   );
                                 })()}
