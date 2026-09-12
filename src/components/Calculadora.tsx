@@ -114,6 +114,7 @@ export default function Calculadora() {
   const [lancStatus, setLancStatus] = useState("");
   const [negocioSync, setNegocioSync] = useState<"init" | "pronto">("init");
   const baseSyncRef = useRef<string>("");
+  const revRef = useRef<number>(-1);
   const [mesSel, setMesSel] = useState<string>(() => hojeISO().slice(0, 7));
   const [fa, setFa] = useState({
     data: hojeISO(),
@@ -250,6 +251,25 @@ export default function Calculadora() {
     }
   }, [dados.servicos, fa.servico]);
   /* o negócio vivo da conta: carrega da nuvem ao entrar e salva sozinho a cada mudança */
+  async function carregarNegocio(): Promise<boolean> {
+    const { data, error } = await getSupabase().from("negocio").select("dados, rev").maybeSingle();
+    if (error) {
+      /* sem leitura não há escrita: evita regravar estado velho por cima do banco */
+      setStatus("erro ao carregar; recarregue a página");
+      return false;
+    }
+    if (data?.dados) {
+      const migrado = migrarDados(data.dados);
+      baseSyncRef.current = JSON.stringify(migrado);
+      revRef.current = Number(data.rev) || 0;
+      setDados(migrado);
+      setVersao((v) => v + 1);
+    } else {
+      revRef.current = -1;
+    }
+    return true;
+  }
+
   useEffect(() => {
     if (!user) {
       setNegocioSync("init");
@@ -257,24 +277,13 @@ export default function Calculadora() {
     }
     let ativo = true;
     (async () => {
-      const { data, error } = await getSupabase().from("negocio").select("dados").maybeSingle();
-      if (!ativo) return;
-      if (error) {
-        /* sem leitura não há escrita: evita regravar estado velho por cima do banco */
-        setStatus("erro ao carregar; recarregue a página");
-        return;
-      }
-      if (data?.dados) {
-        const migrado = migrarDados(data.dados);
-        baseSyncRef.current = JSON.stringify(migrado);
-        setDados(migrado);
-        setVersao((v) => v + 1);
-      }
-      setNegocioSync("pronto");
+      const ok = await carregarNegocio();
+      if (ativo && ok) setNegocioSync("pronto");
     })();
     return () => {
       ativo = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
   useEffect(() => {
@@ -282,11 +291,20 @@ export default function Calculadora() {
       const atual = JSON.stringify(dados);
       if (user && negocioSync === "pronto" && atual !== baseSyncRef.current) {
         void getSupabase()
-          .from("negocio")
-          .upsert({ user_id: user.id, dados: { ...dados, sv: 5 } })
-          .then(({ error }) => {
-            if (!error) baseSyncRef.current = atual;
-            setStatus(error ? "erro ao salvar" : "salvo automaticamente");
+          .rpc("salvar_negocio", { p_dados: { ...dados, sv: 6 }, p_rev: revRef.current })
+          .then(async ({ data, error }) => {
+            if (!error) {
+              revRef.current = Number(data);
+              baseSyncRef.current = atual;
+              setStatus("salvo automaticamente");
+            } else if ((error.message || "").includes("REV_CONFLITO")) {
+              /* outra sessão gravou antes: recarrega a verdade do banco em vez de sobrescrever */
+              setStatus("atualizado em outro acesso; recarregando...");
+              await carregarNegocio();
+              setStatus("dados sincronizados");
+            } else {
+              setStatus("erro ao salvar");
+            }
           });
       }
     }, 800);
