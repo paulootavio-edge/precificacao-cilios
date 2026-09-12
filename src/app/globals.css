@@ -326,6 +326,12 @@ tr.consumo-tr td, tr.consumo-tr:hover td { background: var(--surface) !important
 .cp-add .fsel.curto { min-width: 0; width: 110px; }
 .cp-add .add-btn { width: auto; margin-top: 0; padding: 8px 16px; }
 .cp-add-hint { font-size: 0.64rem; color: var(--faint); }
+.cp-link {
+  border: none; background: none; padding: 0; cursor: pointer;
+  font-size: 0.64rem; color: var(--ink); font-weight: 500;
+  text-decoration: underline; text-underline-offset: 2px;
+}
+.cp-link:hover { color: var(--green); }
 .cp-nome { font-family: var(--font-body); font-size: 0.72rem; color: var(--ink); text-align: left; white-space: normal; line-height: 1.25; }
 .cp-item .tin { width: 100%; }
 .cp-sub { font-size: 0.68rem; color: var(--faint); text-align: right; font-variant-numeric: tabular-nums; }
