@@ -47,32 +47,31 @@ export const DADOS_PADRAO: Dados = {
     { id: C.luvas, n: "Luvas (caixa 50 pares)", v: 40, r: 50 },
     { id: C.higiene, n: "Higienização (álcool, algodão)", v: 20, r: 100 },
   ],
-  /* receitas de exemplo enxutas: só o essencial de cada técnica.
-     O resto do catálogo fica disponível para a pessoa incluir onde usa. */
+  /* receitas nascem VAZIAS: cada pessoa seleciona no catálogo o que a técnica dela usa */
   servicos: [
     {
       n: "Fio a fio / clássico", p: 130, d: 2, m: 25,
-      consumo: { fios: 1, cola: 1, pads: 1, micropinceis: 1, escovinhas: 1, higiene: 1 },
+      consumo: {},
     },
     {
       n: "Híbrido", p: 150, d: 2.25, m: 20,
-      consumo: { fios: 1.2, cola: 1.1, pads: 1, micropinceis: 1, escovinhas: 1, higiene: 1 },
+      consumo: {},
     },
     {
       n: "Volume brasileiro", p: 160, d: 2.5, m: 20,
-      consumo: { fios: 1.4, cola: 1.2, pads: 1, micropinceis: 1, escovinhas: 1, higiene: 1 },
+      consumo: {},
     },
     {
       n: "Volume russo", p: 180, d: 3, m: 10,
-      consumo: { fios: 1.7, cola: 1.4, pads: 1, micropinceis: 1, escovinhas: 1, higiene: 1 },
+      consumo: {},
     },
     {
       n: "Mega volume", p: 220, d: 3.5, m: 5,
-      consumo: { fios: 2.2, cola: 1.6, pads: 1, micropinceis: 1, escovinhas: 1, higiene: 1 },
+      consumo: {},
     },
     {
       n: "Manutenção", p: 90, d: 1.5, m: 20,
-      consumo: { fios: 0.5, cola: 0.6, removedor: 1, micropinceis: 1, escovinhas: 1, higiene: 1 },
+      consumo: {},
     },
   ],
   fixos: [
@@ -126,12 +125,18 @@ export function migrarDados(raw: unknown): Dados {
 
   const servicosRaw = (Array.isArray(d.servicos) ? d.servicos : base.servicos) as ServicoLegado[];
   const servicos: Servico[] = servicosRaw.map((s) => {
-    const legado = s.consumo && typeof s.consumo === "object" ? s.consumo : null;
-    const fator = typeof s.f === "number" ? s.f : 1;
     const consumo: Record<string, number> = {};
-    produtos.forEach((p) => {
-      consumo[p.id] = legado && p.id in legado ? legado[p.id] : fator;
-    });
+    if (s.consumo && typeof s.consumo === "object") {
+      /* formato atual: a receita é exatamente o que a pessoa selecionou; nunca re-preencher */
+      produtos.forEach((p) => {
+        if (p.id in s.consumo!) consumo[p.id] = s.consumo![p.id];
+      });
+    } else if (typeof s.f === "number") {
+      /* formato antigo (fator único): vira quantidade f em todos os produtos */
+      produtos.forEach((p) => {
+        consumo[p.id] = s.f as number;
+      });
+    }
     return { n: s.n ?? "", p: s.p ?? 0, d: s.d ?? 0, m: s.m ?? 0, consumo };
   });
 

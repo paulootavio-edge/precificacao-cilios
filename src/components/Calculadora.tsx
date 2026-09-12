@@ -1061,7 +1061,8 @@ export default function Calculadora() {
                                   setNovoInsumoSel("");
                                 }}
                               >
-                                {money(l.mat)} <span className="chev">▾</span>
+                                {Object.keys(s.consumo ?? {}).length === 0 ? "+ incluir insumos" : money(l.mat)}{" "}
+                                <span className="chev">▾</span>
                               </button>
                             </td>
                             <td>{money(l.tempo)}</td>
