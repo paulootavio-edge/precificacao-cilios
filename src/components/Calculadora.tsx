@@ -285,7 +285,7 @@ export default function Calculadora() {
       if (user && negocioSync === "pronto" && atual !== baseSyncRef.current) {
         void getSupabase()
           .from("negocio")
-          .upsert({ user_id: user.id, dados: { ...dados, sv: 3 } })
+          .upsert({ user_id: user.id, dados: { ...dados, sv: 4 } })
           .then(({ error }) => {
             if (!error) baseSyncRef.current = atual;
             setStatus(error ? "erro ao salvar" : "salvo automaticamente");
