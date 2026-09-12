@@ -140,8 +140,9 @@ export function migrarDados(raw: unknown): Dados {
     return { n: s.n ?? "", p: s.p ?? 0, d: s.d ?? 0, m: s.m ?? 0, consumo };
   });
 
-  /* cenários antigos podiam carregar `reais` dentro; hoje lançamentos vivem fora do cenário */
-  const limpo = { ...d, produtos, servicos } as Dados & { reais?: unknown };
+  /* campos internos e legados não fazem parte do estado do app */
+  const limpo = { ...d, produtos, servicos } as Dados & { reais?: unknown; sv?: unknown };
   delete limpo.reais;
+  delete limpo.sv;
   return limpo;
 }

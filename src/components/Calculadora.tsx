@@ -281,7 +281,7 @@ export default function Calculadora() {
       if (user && negocioSync === "pronto") {
         void getSupabase()
           .from("negocio")
-          .upsert({ user_id: user.id, dados })
+          .upsert({ user_id: user.id, dados: { ...dados, sv: 2 } })
           .then(({ error }) => setStatus(error ? "erro ao salvar" : "salvo automaticamente"));
       }
     }, 800);
