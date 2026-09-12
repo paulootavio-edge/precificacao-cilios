@@ -113,6 +113,7 @@ export default function Calculadora() {
   const [lanc, setLanc] = useState<LancData>({ atendimentos: [], gastos: [] });
   const [lancStatus, setLancStatus] = useState("");
   const [negocioSync, setNegocioSync] = useState<"init" | "pronto">("init");
+  const baseSyncRef = useRef<string>("");
   const [mesSel, setMesSel] = useState<string>(() => hojeISO().slice(0, 7));
   const [fa, setFa] = useState({
     data: hojeISO(),
@@ -263,7 +264,9 @@ export default function Calculadora() {
       const { data, error } = await getSupabase().from("negocio").select("dados").maybeSingle();
       if (!ativo) return;
       if (!error && data?.dados) {
-        setDados(migrarDados(data.dados));
+        const migrado = migrarDados(data.dados);
+        baseSyncRef.current = JSON.stringify(migrado);
+        setDados(migrado);
         setVersao((v) => v + 1);
       }
       setNegocioSync("pronto");
@@ -278,11 +281,15 @@ export default function Calculadora() {
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(dados));
       } catch {}
-      if (user && negocioSync === "pronto") {
+      const atual = JSON.stringify(dados);
+      if (user && negocioSync === "pronto" && atual !== baseSyncRef.current) {
         void getSupabase()
           .from("negocio")
-          .upsert({ user_id: user.id, dados: { ...dados, sv: 2 } })
-          .then(({ error }) => setStatus(error ? "erro ao salvar" : "salvo automaticamente"));
+          .upsert({ user_id: user.id, dados: { ...dados, sv: 3 } })
+          .then(({ error }) => {
+            if (!error) baseSyncRef.current = atual;
+            setStatus(error ? "erro ao salvar" : "salvo automaticamente");
+          });
       }
     }, 800);
     return () => clearTimeout(t);
