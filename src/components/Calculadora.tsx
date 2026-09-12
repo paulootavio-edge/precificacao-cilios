@@ -146,14 +146,10 @@ export default function Calculadora() {
     });
   }
 
-  /* localStorage: carrega no mount, salva com debounce */
+  /* o negócio vive só no banco (login é obrigatório); purga o cache local antigo */
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        setDados(migrarDados(JSON.parse(raw)));
-        setVersao((v) => v + 1);
-      }
+      localStorage.removeItem(STORAGE_KEY);
     } catch {}
   }, []);
 
@@ -263,7 +259,12 @@ export default function Calculadora() {
     (async () => {
       const { data, error } = await getSupabase().from("negocio").select("dados").maybeSingle();
       if (!ativo) return;
-      if (!error && data?.dados) {
+      if (error) {
+        /* sem leitura não há escrita: evita regravar estado velho por cima do banco */
+        setStatus("erro ao carregar; recarregue a página");
+        return;
+      }
+      if (data?.dados) {
         const migrado = migrarDados(data.dados);
         baseSyncRef.current = JSON.stringify(migrado);
         setDados(migrado);
@@ -278,14 +279,11 @@ export default function Calculadora() {
 
   useEffect(() => {
     const t = setTimeout(() => {
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(dados));
-      } catch {}
       const atual = JSON.stringify(dados);
       if (user && negocioSync === "pronto" && atual !== baseSyncRef.current) {
         void getSupabase()
           .from("negocio")
-          .upsert({ user_id: user.id, dados: { ...dados, sv: 4 } })
+          .upsert({ user_id: user.id, dados: { ...dados, sv: 5 } })
           .then(({ error }) => {
             if (!error) baseSyncRef.current = atual;
             setStatus(error ? "erro ao salvar" : "salvo automaticamente");
