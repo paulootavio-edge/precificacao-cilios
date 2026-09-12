@@ -109,6 +109,7 @@ export default function Calculadora() {
   const [sideMin, setSideMin] = useState(false);
   const [confirmReset, setConfirmReset] = useState(false);
   const [expandido, setExpandido] = useState<number | null>(null);
+  const [novoInsumoSel, setNovoInsumoSel] = useState("");
   const [lanc, setLanc] = useState<LancData>({ atendimentos: [], gastos: [] });
   const [lancStatus, setLancStatus] = useState("");
   const [negocioSync, setNegocioSync] = useState<"init" | "pronto">("init");
@@ -1055,7 +1056,10 @@ export default function Calculadora() {
                               <button
                                 className={`insumos-btn ${aberto ? "open" : ""}`}
                                 title="Personalizar os insumos deste procedimento"
-                                onClick={() => setExpandido(aberto ? null : i)}
+                                onClick={() => {
+                                  setExpandido(aberto ? null : i);
+                                  setNovoInsumoSel("");
+                                }}
                               >
                                 {money(l.mat)} <span className="chev">▾</span>
                               </button>
@@ -1086,41 +1090,108 @@ export default function Calculadora() {
                             <tr className="consumo-tr">
                               <td colSpan={12}>
                                 <div className="cp-title">
-                                  Receita de insumos de <strong>{s.n}</strong>: quantas aplicações de
-                                  cada produto o procedimento gasta. Use 0 para produtos que ele não
-                                  usa e frações à vontade (0,5 = metade de uma aplicação).
+                                  Receita de insumos de <strong>{s.n}</strong>: só o que esta técnica
+                                  usa. Ajuste a quantidade de cada item (frações valem: 0,5 = metade
+                                  de uma aplicação), remova com o × e inclua outros insumos do seu
+                                  catálogo quando quiser.
                                 </div>
-                                <div className="cp-grid">
-                                  {dados.produtos.map((p) => {
-                                    const custoApl = custoAplicacao(p);
-                                    const qtd = s.consumo?.[p.id] ?? 0;
-                                    return (
-                                      <div className="cp-item" key={`${p.id}-${versao}`}>
-                                        <span className="cp-nome">{p.n}</span>
-                                        <input
-                                          className="tin"
-                                          type="number"
-                                          step="0.1"
-                                          min="0"
-                                          defaultValue={qtd}
-                                          aria-label={`Quantidade de ${p.n}`}
-                                          onChange={(e) => {
-                                            const v = parseNum(e.target.value);
-                                            setDados((d) => {
-                                              const servicos = [...d.servicos];
-                                              servicos[i] = {
-                                                ...servicos[i],
-                                                consumo: { ...servicos[i].consumo, [p.id]: v },
-                                              };
-                                              return { ...d, servicos };
-                                            });
-                                          }}
-                                        />
-                                        <span className="cp-sub">{money(qtd * custoApl)}</span>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
+                                {(() => {
+                                  const consumo = s.consumo ?? {};
+                                  const naReceita = dados.produtos.filter((p) => p.id in consumo);
+                                  const foraDaReceita = dados.produtos.filter((p) => !(p.id in consumo));
+                                  const selecionado = novoInsumoSel && foraDaReceita.some((p) => p.id === novoInsumoSel)
+                                    ? novoInsumoSel
+                                    : foraDaReceita[0]?.id ?? "";
+                                  return (
+                                    <>
+                                      {naReceita.length > 0 ? (
+                                        <div className="cp-grid">
+                                          {naReceita.map((p) => {
+                                            const custoApl = custoAplicacao(p);
+                                            const qtd = consumo[p.id] ?? 0;
+                                            return (
+                                              <div className="cp-item" key={`${p.id}-${versao}`}>
+                                                <span className="cp-nome">{p.n}</span>
+                                                <input
+                                                  className="tin"
+                                                  type="number"
+                                                  step="0.1"
+                                                  min="0"
+                                                  defaultValue={qtd}
+                                                  aria-label={`Quantidade de ${p.n}`}
+                                                  onChange={(e) => {
+                                                    const v = parseNum(e.target.value);
+                                                    setDados((d) => {
+                                                      const servicos = [...d.servicos];
+                                                      servicos[i] = {
+                                                        ...servicos[i],
+                                                        consumo: { ...servicos[i].consumo, [p.id]: v },
+                                                      };
+                                                      return { ...d, servicos };
+                                                    });
+                                                  }}
+                                                />
+                                                <span className="cp-sub">{money(qtd * custoApl)}</span>
+                                                <button
+                                                  className="del-btn"
+                                                  title={`Tirar ${p.n} desta técnica`}
+                                                  onClick={() =>
+                                                    setDados((d) => {
+                                                      const servicos = [...d.servicos];
+                                                      const novoConsumo = { ...servicos[i].consumo };
+                                                      delete novoConsumo[p.id];
+                                                      servicos[i] = { ...servicos[i], consumo: novoConsumo };
+                                                      return { ...d, servicos };
+                                                    })
+                                                  }
+                                                >
+                                                  ×
+                                                </button>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      ) : (
+                                        <div className="sc-status">
+                                          esta técnica ainda não tem insumos: inclua abaixo os que ela usa
+                                        </div>
+                                      )}
+                                      {foraDaReceita.length > 0 && (
+                                        <div className="cp-add">
+                                          <select
+                                            className="fsel"
+                                            value={selecionado}
+                                            aria-label="Insumo do catálogo para incluir"
+                                            onChange={(e) => setNovoInsumoSel(e.target.value)}
+                                          >
+                                            {foraDaReceita.map((p) => (
+                                              <option key={p.id} value={p.id}>
+                                                {p.n} ({money(custoAplicacao(p))}/aplicação)
+                                              </option>
+                                            ))}
+                                          </select>
+                                          <button
+                                            className="add-btn"
+                                            onClick={() => {
+                                              if (!selecionado) return;
+                                              setDados((d) => {
+                                                const servicos = [...d.servicos];
+                                                servicos[i] = {
+                                                  ...servicos[i],
+                                                  consumo: { ...servicos[i].consumo, [selecionado]: 1 },
+                                                };
+                                                return { ...d, servicos };
+                                              });
+                                              setNovoInsumoSel("");
+                                            }}
+                                          >
+                                            + incluir nesta técnica
+                                          </button>
+                                        </div>
+                                      )}
+                                    </>
+                                  );
+                                })()}
                                 <div className="cp-total">
                                   <span>Custo de insumos por aplicação de {s.n}</span>
                                   <strong>{money(l.mat)}</strong>
@@ -1143,13 +1214,7 @@ export default function Calculadora() {
                       ...d,
                       servicos: [
                         ...d.servicos,
-                        {
-                          n: "Novo procedimento",
-                          p: 100,
-                          d: 2,
-                          m: 0,
-                          consumo: Object.fromEntries(d.produtos.map((p) => [p.id, 1])),
-                        },
+                        { n: "Novo procedimento", p: 100, d: 2, m: 0, consumo: {} },
                       ],
                     }));
                     remonta();
@@ -1274,14 +1339,10 @@ export default function Calculadora() {
                 <button
                   className="add-btn"
                   onClick={() => {
-                    setDados((d) => {
-                      const id = novoId();
-                      return {
-                        ...d,
-                        produtos: [...d.produtos, { id, n: "Novo insumo", v: 0, r: 1 }],
-                        servicos: d.servicos.map((s) => ({ ...s, consumo: { ...s.consumo, [id]: 1 } })),
-                      };
-                    });
+                    setDados((d) => ({
+                      ...d,
+                      produtos: [...d.produtos, { id: novoId(), n: "Novo insumo", v: 0, r: 1 }],
+                    }));
                     remonta();
                   }}
                 >
