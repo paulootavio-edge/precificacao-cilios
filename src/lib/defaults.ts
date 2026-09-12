@@ -47,30 +47,32 @@ export const DADOS_PADRAO: Dados = {
     { id: C.luvas, n: "Luvas (caixa 50 pares)", v: 40, r: 50 },
     { id: C.higiene, n: "Higienização (álcool, algodão)", v: 20, r: 100 },
   ],
+  /* receitas de exemplo enxutas: só o essencial de cada técnica.
+     O resto do catálogo fica disponível para a pessoa incluir onde usa. */
   servicos: [
     {
       n: "Fio a fio / clássico", p: 130, d: 2, m: 25,
-      consumo: { fios: 1, cola: 1, primer: 1, removedor: 0.5, pads: 1, micropinceis: 1, escovinhas: 1, micropore: 1, aneis: 1, luvas: 1, higiene: 1 },
+      consumo: { fios: 1, cola: 1, pads: 1, micropinceis: 1, escovinhas: 1, higiene: 1 },
     },
     {
       n: "Híbrido", p: 150, d: 2.25, m: 20,
-      consumo: { fios: 1.2, cola: 1.1, primer: 1, removedor: 0.5, pads: 1, micropinceis: 1, escovinhas: 1, micropore: 1, aneis: 1, luvas: 1, higiene: 1 },
+      consumo: { fios: 1.2, cola: 1.1, pads: 1, micropinceis: 1, escovinhas: 1, higiene: 1 },
     },
     {
       n: "Volume brasileiro", p: 160, d: 2.5, m: 20,
-      consumo: { fios: 1.4, cola: 1.2, primer: 1, removedor: 0.5, pads: 1, micropinceis: 1, escovinhas: 1, micropore: 1, aneis: 1, luvas: 1, higiene: 1 },
+      consumo: { fios: 1.4, cola: 1.2, pads: 1, micropinceis: 1, escovinhas: 1, higiene: 1 },
     },
     {
       n: "Volume russo", p: 180, d: 3, m: 10,
-      consumo: { fios: 1.7, cola: 1.4, primer: 1, removedor: 0.5, pads: 1, micropinceis: 1, escovinhas: 1, micropore: 1, aneis: 1, luvas: 1, higiene: 1 },
+      consumo: { fios: 1.7, cola: 1.4, pads: 1, micropinceis: 1, escovinhas: 1, higiene: 1 },
     },
     {
       n: "Mega volume", p: 220, d: 3.5, m: 5,
-      consumo: { fios: 2.2, cola: 1.6, primer: 1, removedor: 0.5, pads: 1, micropinceis: 1, escovinhas: 1, micropore: 1, aneis: 1, luvas: 1, higiene: 1 },
+      consumo: { fios: 2.2, cola: 1.6, pads: 1, micropinceis: 1, escovinhas: 1, higiene: 1 },
     },
     {
       n: "Manutenção", p: 90, d: 1.5, m: 20,
-      consumo: { fios: 0.5, cola: 0.6, primer: 0.5, removedor: 1, pads: 1, micropinceis: 1, escovinhas: 1, micropore: 0.5, aneis: 0.5, luvas: 1, higiene: 1 },
+      consumo: { fios: 0.5, cola: 0.6, removedor: 1, micropinceis: 1, escovinhas: 1, higiene: 1 },
     },
   ],
   fixos: [

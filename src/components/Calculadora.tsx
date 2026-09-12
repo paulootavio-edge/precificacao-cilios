@@ -1106,6 +1106,12 @@ export default function Calculadora() {
                                     <>
                                       {naReceita.length > 0 ? (
                                         <div className="cp-grid">
+                                          <div className="cp-head">
+                                            <span>Insumo</span>
+                                            <span>Qtd/aplicação</span>
+                                            <span>Custo</span>
+                                            <span />
+                                          </div>
                                           {naReceita.map((p) => {
                                             const custoApl = custoAplicacao(p);
                                             const qtd = consumo[p.id] ?? 0;

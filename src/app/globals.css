@@ -317,8 +317,18 @@ tfoot td:first-child { font-family: var(--font-body); font-size: 0.68rem; text-t
 tr.consumo-tr td, tr.consumo-tr:hover td { background: var(--surface) !important; padding: 16px 18px; }
 .cp-title { font-size: 0.7rem; color: var(--muted); margin-bottom: 14px; font-family: var(--font-body); text-align: left; white-space: normal; max-width: 780px; }
 .cp-title strong { color: var(--ink); font-weight: 500; }
-.cp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(235px, 1fr)); gap: 7px 26px; }
-.cp-item { display: grid; grid-template-columns: 1fr 58px 74px 24px; align-items: center; gap: 8px; }
+.cp-grid { display: flex; flex-direction: column; max-width: 660px; }
+.cp-head {
+  display: grid; grid-template-columns: 1fr 96px 100px 28px; gap: 10px;
+  font-size: 0.58rem; color: var(--faint); text-transform: uppercase; letter-spacing: 0.08em;
+  padding: 0 0 6px; border-bottom: 1px solid var(--border);
+}
+.cp-head span:nth-child(2), .cp-head span:nth-child(3) { text-align: right; }
+.cp-item {
+  display: grid; grid-template-columns: 1fr 96px 100px 28px; align-items: center; gap: 10px;
+  padding: 5px 0; border-bottom: 1px solid var(--border-soft);
+}
+.cp-item:last-child { border-bottom: none; }
 .cp-item .del-btn { height: 24px; font-size: 0.85rem; }
 .cp-add { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--border); }
 .cp-add-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
