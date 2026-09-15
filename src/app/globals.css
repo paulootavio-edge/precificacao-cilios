@@ -428,5 +428,13 @@ button.sc-nome:hover { background: var(--surface); }
 .auth-alt button { border: none; background: none; color: var(--ink); font-weight: 500; cursor: pointer; font-size: 0.76rem; text-decoration: underline; text-underline-offset: 3px; }
 .auth-back { display: block; text-align: center; margin-top: 20px; font-size: 0.68rem; color: var(--faint); text-decoration: none; }
 
+/* página de acesso ao bônus (entrega da Kiwify) */
+.acesso .auth-card { max-width: 460px; }
+.passos { margin: 0 0 22px; padding-left: 20px; display: flex; flex-direction: column; gap: 10px; }
+.passos li { font-size: 0.84rem; color: var(--muted); }
+.passos li strong { color: var(--ink); font-weight: 500; }
+.acesso .btn { width: 100%; padding: 13px; text-align: center; }
+.acesso-dica { margin-top: 18px; font-size: 0.7rem; color: var(--faint); text-align: center; }
+
 footer.metodo { margin-top: 22px; font-size: 0.68rem; color: var(--faint); max-width: 960px; }
 footer.metodo strong { color: var(--muted); }
